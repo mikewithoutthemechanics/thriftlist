@@ -22,9 +22,10 @@ export async function POST(request: NextRequest) {
     if (removeBackground) {
       try {
         // Basic sharp optimization for now
-        buffer = await sharp(buffer)
+        const processedBuffer = await sharp(buffer)
           .trim() // remove transparent edges if any
           .toBuffer();
+        buffer = Buffer.from(processedBuffer);
       } catch (err) {
         console.warn('Background removal failed:', err);
       }

@@ -32,7 +32,11 @@ export async function createClientServer() {
 
 export async function createAdminClient() {
   return createServerClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey, {
-    cookies: {},
+    cookies: {
+      get() { return undefined; },
+      set() { },
+      remove() { },
+    },
     auth: {
       autoRefreshToken: false,
       persistSession: false
