@@ -13,7 +13,7 @@ import StickyCTA from '@/components/landing/StickyCTA';
 
 export default function LandingPage() {
   return (
-    <div className="bg-black scroll-smooth">
+    <div className="bg-background text-foreground scroll-smooth">
       <Hero />
       <MarqueeStrip />
       <ProblemSolution />

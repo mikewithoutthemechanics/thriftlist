@@ -21,9 +21,9 @@ export default function ProblemSolution() {
   const isInView = useInView(ref, { once: true, margin: '-100px' });
 
   return (
-    <section ref={ref} className="relative py-32 sm:py-44 px-6 bg-[#050505] overflow-hidden">
+    <section ref={ref} className="relative py-32 sm:py-44 px-6 bg-background overflow-hidden">
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse at center, rgba(34,197,94,0.03) 0%, transparent 70%)', filter: 'blur(60px)' }}
+        style={{ background: 'radial-gradient(ellipse at center, rgba(124,58,237,0.05) 0%, transparent 70%)', filter: 'blur(60px)' }}
       />
 
       <div className="max-w-5xl mx-auto relative">
@@ -33,10 +33,10 @@ export default function ProblemSolution() {
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
           className="text-center mb-20"
         >
-          <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-accent mb-4 block">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-primary mb-4 block">
             The Problem
           </span>
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight leading-[1.1] font-serif">
+          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground tracking-tight leading-[1.1] font-sans">
             Reselling should not be a full-time job.
           </h2>
         </motion.div>
@@ -47,9 +47,9 @@ export default function ProblemSolution() {
             initial={{ opacity: 0, x: -30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="p-8 rounded-[22px] bg-[#111111]/80 border border-white/[0.04] shadow-xl shadow-black/20 backdrop-blur-sm"
+            className="p-8 rounded-[22px] bg-muted/30 border border-border shadow-sm backdrop-blur-sm"
           >
-            <h3 className="text-lg font-medium text-white/40 mb-6 uppercase tracking-wider text-xs">
+            <h3 className="text-lg font-medium text-foreground/40 mb-6 uppercase tracking-wider text-xs">
               Without ThriftList
             </h3>
             <div className="space-y-5">
@@ -61,10 +61,10 @@ export default function ProblemSolution() {
                   transition={{ duration: 0.5, delay: 0.3 + i * 0.1 }}
                   className="flex items-start gap-4"
                 >
-                  <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <point.icon className="w-4 h-4 text-red-400" />
+                  <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <point.icon className="w-4 h-4 text-destructive" />
                   </div>
-                  <p className="text-sm text-white/50 leading-relaxed">{point.text}</p>
+                  <p className="text-sm text-foreground/60 leading-relaxed">{point.text}</p>
                 </motion.div>
               ))}
             </div>
@@ -75,10 +75,10 @@ export default function ProblemSolution() {
             initial={{ opacity: 0, x: 30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="p-8 rounded-[22px] bg-[#111111]/80 border border-accent/10 relative shadow-xl shadow-black/20 backdrop-blur-sm"
+            className="p-8 rounded-[22px] bg-white border border-primary/20 relative shadow-lg shadow-primary/5 backdrop-blur-sm"
           >
-            <div className="absolute -top-px left-8 right-8 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
-            <h3 className="text-lg font-medium text-accent mb-6 uppercase tracking-wider text-xs">
+            <div className="absolute -top-px left-8 right-8 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+            <h3 className="text-lg font-medium text-primary mb-6 uppercase tracking-wider text-xs">
               With ThriftList
             </h3>
             <div className="space-y-5">
@@ -90,10 +90,10 @@ export default function ProblemSolution() {
                   transition={{ duration: 0.5, delay: 0.5 + i * 0.1 }}
                   className="flex items-start gap-4"
                 >
-                  <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <sol.icon className="w-4 h-4 text-emerald-400" />
+                  <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <sol.icon className="w-4 h-4 text-accent" />
                   </div>
-                  <p className="text-sm text-white/70 leading-relaxed">{sol.text}</p>
+                  <p className="text-sm text-foreground leading-relaxed font-medium">{sol.text}</p>
                 </motion.div>
               ))}
             </div>

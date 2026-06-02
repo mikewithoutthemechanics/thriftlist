@@ -54,13 +54,13 @@ function FabricButton({
   const styles = {
     gold:
       base +
-      ' bg-[accent] text-[#0c0c0c] hover:shadow-[0_0_30px_rgba(196,168,130,0.4)]',
+      ' bg-primary text-white hover:bg-primary/90 hover:shadow-lg',
     outline:
       base +
-      ' border border-white/20 text-white/80 hover:border-[accent]/50 hover:text-white hover:bg-white/[0.03]',
+      ' border border-border text-foreground hover:bg-muted',
     ghost:
       base +
-      ' border border-[accent]/30 text-[accent] hover:border-[accent]/60 hover:bg-[accent]/5',
+      ' border border-accent/30 text-accent hover:border-accent/60 hover:bg-accent/5',
   };
 
   return (
@@ -90,7 +90,7 @@ export default function Hero() {
   }, []);
 
   return (
-    <section className="relative min-h-screen bg-[#050505] overflow-hidden flex items-center justify-center">
+    <section className="relative min-h-screen bg-background overflow-hidden flex items-center justify-center">
       {/* 3D CLOTHES PILE SCENE */}
       <div className="absolute inset-0 z-0">
         {!prefersReducedMotion && <FallingClothes3D />}

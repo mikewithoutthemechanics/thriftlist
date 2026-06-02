@@ -1,23 +1,22 @@
-import { Fira_Code, Fira_Sans } from 'next/font/google';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import ClientLayout from '@/components/ClientLayout';
 
-const firaCode = Fira_Code({
-  variable: '--font-display',
+const inter = Inter({
+  variable: '--font-body',
   subsets: ['latin'],
   display: 'swap',
 });
 
-const firaSans = Fira_Sans({
-  variable: '--font-body',
-  weight: ['300', '400', '500', '600', '700'],
+const jetbrainsMono = JetBrains_Mono({
+  variable: '--font-mono',
   subsets: ['latin'],
   display: 'swap',
 });
 
 export const metadata = {
-  title: 'Thrift List | Luxury Reselling Platform',
-  description: 'Automated clothing listings for South African marketplaces. Sell smarter, not harder.',
+  title: 'ThriftList | AI-Powered Reselling for South Africa',
+  description: 'Automated clothing listings for Yaga, FB Marketplace, and more. Sell smarter with AI-driven vision and pricing.',
 };
 
 export default function RootLayout({
@@ -28,7 +27,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${firaCode.variable} ${firaSans.variable} h-full antialiased dark`}
+      className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased light`}
     >
       <head>
         <link rel="manifest" href="/manifest.json" />
