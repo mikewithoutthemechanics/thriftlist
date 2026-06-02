@@ -39,6 +39,28 @@ Include details about the condition, any notable features, and why someone would
 - Color: ${color || 'Not specified'}`;
     } else if (type === 'price') {
       const { category, condition, brand } = data;
+
+      // Try to get from local market pricing database first
+      try {
+        const { data: localPrice } = await supabase
+          .from('market_pricing')
+          .select('avg_price, min_price, max_price')
+          .eq('category', category)
+          .eq('brand', brand || 'Generic')
+          .eq('condition', condition || 'good')
+          .maybeSingle();
+
+        if (localPrice?.avg_price) {
+          return NextResponse.json({ 
+            result: localPrice.avg_price.toString(),
+            source: 'local_database',
+            range: { min: localPrice.min_price, max: localPrice.max_price }
+          });
+        }
+      } catch (err) {
+        console.warn('Local pricing lookup failed:', err);
+      }
+
       systemPrompt = 'You are a pricing expert for South African secondhand clothing marketplaces. Suggest realistic price ranges in Rand (R). Consider condition, brand, and category. Respond with just the number.';
       prompt = `Suggest a fair price in South African Rand for:
 - ${brand || 'Unbranded'} ${category}
@@ -97,6 +119,22 @@ Consider Yaga, Facebook Marketplace, and Gumtree South Africa. Return JSON only.
 - Description: ${description?.substring(0, 200) || ''}
 
 Return JSON array only, e.g. ["tag1", "tag2"].`;
+    } else if (type === 'platform_description') {
+      const { description, title, platform } = data;
+      systemPrompt = `You are an expert copywriter for South African online marketplaces. Rewrite the product description to match the tone and style of ${platform}. Keep all factual details (size, condition, brand, color) but adjust the tone. Keep under 200 words.`;
+      prompt = `Rewrite this clothing listing description for ${platform}:
+
+Original title: ${title}
+Original description: ${description}
+
+Platform tone guide:
+- facebook_marketplace: casual, friendly, conversational, use emojis sparingly
+- yaga: trendy, youthful, fashion-forward, Gen-Z friendly, use hashtags
+- gumtree: straightforward, factual, no fluff, clear bullet points preferred
+- olx: direct, price-focused, minimal, practical
+- junkmail: honest, simple, community-focused
+
+Return only the rewritten description text, no explanation.`;
     } else if (type === 'parse_photo') {
       const { imageBase64 } = data;
       systemPrompt = 'You are a clothing item identifier. Analyze the photo and return ONLY a JSON object with: title (string), category (one of: Tops,Bottoms,Dresses,Outerwear,Shoes,Accessories,Activewear,Swimwear,Formal Wear,Vintage), brand (string or empty), color (string), size (string or empty), condition (one of: new,like_new,good,fair,poor), material (string), description (string). Be accurate. Return JSON only.';

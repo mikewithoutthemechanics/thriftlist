@@ -33,38 +33,24 @@ export async function POST(request: NextRequest) {
     const validatedData = automationJobSchema.parse(body);
     const { itemId, platforms } = validatedData;
 
-    // Create job record for tracking
-    const { data: job } = await supabase.from('automation_jobs').insert({
+    // Create job record in the new robust queue
+    const { data: job, error: jobError } = await supabase.from('automation_queue').insert({
       user_id: user.id,
       item_id: itemId,
       platforms,
-      status: 'queued',
+      status: 'pending',
     }).select().single();
 
-    // Automation only works locally where Playwright + Chromium are installed
-    // On Vercel/serverless, this will fail gracefully
-    try {
-      runAutomation({ itemId, platforms, userId: user.id })
-        .then(async () => {
-          // Update job status to completed
-          await supabase.from('automation_jobs').update({ status: 'completed' }).eq('id', job.id);
-        })
-        .catch(async (err) => {
-          console.error('Background automation error:', err);
-          // Update job and all pending postings to failed
-          await supabase.from('automation_jobs').update({ status: 'failed', error: err.message }).eq('id', job.id);
-          await supabase.from('postings').update({ status: 'failed', error: err.message })
-            .eq('item_id', itemId).eq('user_id', user.id).eq('status', 'pending');
-        });
-    } catch (err: any) {
-      console.error('Automation startup error:', err);
-      await supabase.from('automation_jobs').update({ status: 'failed', error: 'Automation requires local environment with Playwright installed' }).eq('id', job.id);
-      await supabase.from('postings').update({ status: 'failed', error: 'Automation requires a local environment with Playwright and Chromium installed.' })
-        .eq('item_id', itemId).eq('user_id', user.id).eq('status', 'pending');
-      return NextResponse.json({ success: false, error: 'Automation requires a local environment with Playwright and Chromium installed.' });
-    }
+    if (jobError) throw jobError;
 
-    return NextResponse.json({ success: true, jobId: job.id });
+    // We no longer run in background promise to avoid Vercel timeouts.
+    // The cron job (or a future Edge Function webhook) will pick it up.
+
+    return NextResponse.json({ 
+      success: true, 
+      jobId: job.id, 
+      message: 'Job queued for processing. You can check the status in the dashboard.' 
+    });
   } catch (error: any) {
     console.error('POST /api/automation error:', error);
     if (error.name === 'ZodError') {

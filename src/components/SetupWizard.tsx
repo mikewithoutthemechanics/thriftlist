@@ -180,8 +180,8 @@ export default function SetupWizard() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-[#c4a882]/10 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-[#c4a882]" />
+            <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-accent" />
             </div>
             <h2 className="text-lg font-medium text-white tracking-tight">Setup Wizard</h2>
           </div>
@@ -196,7 +196,7 @@ export default function SetupWizard() {
             <div
               key={i}
               className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                i <= currentStep ? 'bg-[#c4a882]' : 'bg-white/[0.06]'
+                i <= currentStep ? 'bg-accent' : 'bg-white/[0.06]'
               }`}
             />
           ))}
@@ -215,8 +215,8 @@ export default function SetupWizard() {
             {steps[currentStep].type === 'welcome' && (
               <div className="space-y-6">
                 <div className="text-center space-y-3">
-                  <div className="w-16 h-16 rounded-2xl bg-[#c4a882]/10 flex items-center justify-center mx-auto">
-                    <Sparkles className="w-8 h-8 text-[#c4a882]" />
+                  <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto">
+                    <Sparkles className="w-8 h-8 text-accent" />
                   </div>
                   <h3 className="text-xl font-light text-white">Welcome to Thrift List</h3>
                   <p className="text-sm text-white/50 leading-relaxed max-w-sm mx-auto">
@@ -242,8 +242,8 @@ export default function SetupWizard() {
             {currentIntegration && (
               <div className="space-y-6">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-[#c4a882]/10 flex items-center justify-center">
-                    <currentIntegration.icon className="w-6 h-6 text-[#c4a882]" />
+                  <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
+                    <currentIntegration.icon className="w-6 h-6 text-accent" />
                   </div>
                   <div>
                     <h3 className="text-lg font-medium text-white">{currentIntegration.name}</h3>
@@ -269,7 +269,7 @@ export default function SetupWizard() {
                       {currentIntegration.id === 'facebook_oauth' ? (
                         <a
                           href={currentIntegration.link}
-                          className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#c4a882] text-[#0c0c0c] rounded-lg text-sm font-medium hover:bg-[#d4b892] transition-colors"
+                          className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-accent text-[#0c0c0c] rounded-lg text-sm font-medium hover:bg-accent transition-colors"
                         >
                           <Shield className="w-4 h-4" />
                           Connect Facebook Account
@@ -295,7 +295,7 @@ export default function SetupWizard() {
                   {currentIntegration.envKey && (
                     <div className="space-y-2">
                       <p className="text-xs text-white/40">
-                        Add your API key to <code className="text-[#c4a882]">.env.local</code>:
+                        Add your API key to <code className="text-accent">.env.local</code>:
                       </p>
                       <code className="block text-xs bg-[#0c0c0c] border border-white/[0.04] rounded-lg p-3 text-white/60 font-mono">
                         {currentIntegration.envKey}=your_key_here
@@ -367,7 +367,7 @@ export default function SetupWizard() {
           {currentStep < steps.length - 1 ? (
             <button
               onClick={handleNext}
-              className="px-6 py-2.5 bg-[#c4a882] text-[#0c0c0c] rounded-xl text-sm font-medium hover:bg-[#d4b892] transition-colors flex items-center gap-2"
+              className="px-6 py-2.5 bg-accent text-[#0c0c0c] rounded-xl text-sm font-medium hover:bg-accent transition-colors flex items-center gap-2"
             >
               Next
               <ArrowRight className="w-4 h-4" />

@@ -34,11 +34,11 @@ export async function GET() {
     checks.checks.groq = { status: 'error', error: err.message };
   }
 
-  // Resend API
+  // Resend API (optional - notifications now use in-app bell)
   try {
     const resendKey = process.env.RESEND_API_KEY;
     if (!resendKey) {
-      checks.checks.resend = { status: 'error', error: 'RESEND_API_KEY not set' };
+      checks.checks.resend = { status: 'warning', message: 'RESEND_API_KEY not set — in-app notifications active instead' };
     } else {
       const res = await fetch('https://api.resend.com/domains', {
         headers: { Authorization: `Bearer ${resendKey}` },
@@ -62,13 +62,6 @@ export async function GET() {
     checks.checks.browserbase = { status: 'error', error: err.message };
   }
 
-  // CloakBrowser
-  try {
-    checks.checks.cloakbrowser = { status: 'ok', installed: true };
-  } catch (err: any) {
-    checks.checks.cloakbrowser = { status: 'error', error: err.message };
-  }
-
   // Facebook OAuth
   try {
     const fbAppId = process.env.FACEBOOK_APP_ID;
@@ -90,6 +83,29 @@ export async function GET() {
     };
   } catch (err: any) {
     checks.checks.encryption = { status: 'error', error: err.message };
+  }
+
+  // Marketplace Authentication Health
+  try {
+    const supabase = await createClientServer();
+    const { data: cookies } = await supabase.from('platform_cookies').select('platform, updated_at');
+    
+    const platformAuth: Record<string, any> = {};
+    for (const c of cookies || []) {
+      const updatedAt = new Date(c.updated_at);
+      const now = new Date();
+      const ageDays = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60 * 24);
+      
+      platformAuth[c.platform] = {
+        status: ageDays > 30 ? 'warning' : 'ok',
+        lastUpdated: c.updated_at,
+        ageDays: Math.floor(ageDays),
+        needsRefresh: ageDays > 30
+      };
+    }
+    checks.checks.platform_auth = platformAuth;
+  } catch (err: any) {
+    checks.checks.platform_auth = { status: 'error', error: err.message };
   }
 
   // Overall status

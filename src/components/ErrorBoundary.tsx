@@ -47,7 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="flex gap-3 justify-center">
               <button
                 onClick={() => window.location.reload()}
-                className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#c4a882] text-[#0c0c0c] rounded-full font-semibold text-sm hover:bg-[#d4b892] transition-colors"
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-accent text-[#0c0c0c] rounded-full font-semibold text-sm hover:bg-accent transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
                 Try Again

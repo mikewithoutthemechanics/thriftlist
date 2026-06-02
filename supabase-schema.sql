@@ -46,6 +46,66 @@ CREATE POLICY "Users can CRUD own settings"
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+-- Platform cookies table
+CREATE TABLE IF NOT EXISTS platform_cookies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  cookies TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, platform)
+);
+
+ALTER TABLE platform_cookies ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can CRUD own platform_cookies"
+  ON platform_cookies
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Automation queue table
+CREATE TABLE IF NOT EXISTS automation_queue (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  item_id UUID NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  platforms JSONB NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending, processing, completed, failed
+  error TEXT,
+  retries INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE automation_queue ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can CRUD own automation_queue"
+  ON automation_queue
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Market pricing database
+CREATE TABLE IF NOT EXISTS market_pricing (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  category TEXT NOT NULL,
+  brand TEXT,
+  condition TEXT,
+  min_price REAL,
+  max_price REAL,
+  avg_price REAL,
+  source TEXT, -- yaga, fb, gumtree
+  last_scraped TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (category, brand, condition, source)
+);
+
+ALTER TABLE market_pricing ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read market_pricing"
+  ON market_pricing
+  FOR SELECT
+  USING (true);
+
 -- Postings table
 CREATE TABLE IF NOT EXISTS postings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -93,4 +153,7 @@ CREATE TRIGGER update_items_updated_at BEFORE UPDATE ON items
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_postings_updated_at BEFORE UPDATE ON postings
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_automation_queue_updated_at BEFORE UPDATE ON automation_queue
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

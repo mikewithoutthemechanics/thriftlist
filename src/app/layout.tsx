@@ -1,22 +1,16 @@
-import { Playfair_Display, Lora, IBM_Plex_Mono } from 'next/font/google';
+import { Fira_Code, Fira_Sans } from 'next/font/google';
 import './globals.css';
 import ClientLayout from '@/components/ClientLayout';
 
-const playfair = Playfair_Display({
+const firaCode = Fira_Code({
   variable: '--font-display',
   subsets: ['latin'],
   display: 'swap',
 });
 
-const lora = Lora({
+const firaSans = Fira_Sans({
   variable: '--font-body',
-  subsets: ['latin'],
-  display: 'swap',
-});
-
-const ibmMono = IBM_Plex_Mono({
-  variable: '--font-mono',
-  weight: ['400', '500'],
+  weight: ['300', '400', '500', '600', '700'],
   subsets: ['latin'],
   display: 'swap',
 });
@@ -34,11 +28,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${playfair.variable} ${lora.variable} ${ibmMono.variable} h-full antialiased dark`}
+      className={`${firaCode.variable} ${firaSans.variable} h-full antialiased dark`}
     >
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#0a0a0a" />
+        <meta name="theme-color" content="#020617" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>

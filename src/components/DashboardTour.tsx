@@ -198,7 +198,7 @@ export default function DashboardTour() {
 
       {/* Highlight border around target */}
       <motion.div
-        className="absolute pointer-events-none border-2 border-[#c4a882] rounded-xl"
+        className="absolute pointer-events-none border-2 border-accent rounded-xl"
         style={{
           left: targetRect.left - padding,
           top: targetRect.top - padding,
@@ -223,7 +223,7 @@ export default function DashboardTour() {
         >
           {/* Step counter */}
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#c4a882]">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-accent">
               Step {currentStep + 1} of {tourSteps.length}
             </span>
             <button onClick={skipTour} className="text-white/20 hover:text-white/60 transition-colors">
@@ -250,14 +250,14 @@ export default function DashboardTour() {
                 <div
                   key={i}
                   className={`h-1 flex-1 rounded-full transition-colors ${
-                    i <= currentStep ? 'bg-[#c4a882]' : 'bg-white/[0.06]'
+                    i <= currentStep ? 'bg-accent' : 'bg-white/[0.06]'
                   }`}
                 />
               ))}
             </div>
             <button
               onClick={handleNext}
-              className="px-4 py-2 bg-[#c4a882] text-[#0c0c0c] rounded-lg text-xs font-medium hover:bg-[#d4b892] transition-colors flex items-center gap-1"
+              className="px-4 py-2 bg-accent text-[#0c0c0c] rounded-lg text-xs font-medium hover:bg-accent transition-colors flex items-center gap-1"
             >
               {currentStep === tourSteps.length - 1 ? 'Finish' : 'Next'}
               <ArrowRight className="w-3 h-3" />

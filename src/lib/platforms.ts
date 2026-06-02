@@ -36,13 +36,6 @@ export const SA_PLATFORMS: PlatformConfig[] = [
     hasApi: false,
     enabled: true,
   },
-  {
-    id: 'whatsapp_groups',
-    name: 'WhatsApp Groups',
-    url: 'https://web.whatsapp.com',
-    hasApi: false,
-    enabled: true,
-  },
 ];
 
 export function getPlatformById(id: string): PlatformConfig | undefined {

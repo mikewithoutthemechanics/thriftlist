@@ -32,7 +32,7 @@ export default function MarqueeStrip() {
   const content = items.map((text, i) => (
     <span key={i} className="flex items-center gap-6 text-lg sm:text-xl font-light text-white/8 uppercase tracking-[0.2em] whitespace-nowrap px-6">
       {text}
-      <span className="w-[3px] h-[3px] rounded-full bg-[#c4a882]/30 flex-shrink-0" />
+      <span className="w-[3px] h-[3px] rounded-full bg-accent/30 flex-shrink-0" />
     </span>
   ));
 

@@ -1,9 +1,9 @@
-import { chromium, Page } from 'playwright-core';
+import { chromium, Page, Browser, BrowserContext } from 'playwright-core';
+import { launch } from 'cloakbrowser';
 import Browserbase from '@browserbasehq/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { SA_PLATFORMS } from './platforms';
-import { sendEmail, generatePostingSuccessEmail, generatePostingFailureEmail } from './email';
-import { postToFacebookAPI, hasAPISupport, getPlatformAPIConfig, ClothingItem } from './platform-apis';
+import { createNotification } from './notifications';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -16,6 +16,20 @@ export interface AutomationJob {
   itemId: string;
   platforms: string[];
   userId: string;
+}
+
+interface ItemData {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string;
+  price: number;
+  category: string;
+  size: string;
+  brand: string;
+  condition: string;
+  color: string;
+  photos: string[];
 }
 
 export async function runAutomation(job: AutomationJob) {
@@ -39,8 +53,7 @@ export async function runAutomation(job: AutomationJob) {
     const platform = SA_PLATFORMS.find(p => p.id === platformId);
     if (!platform) continue;
 
-    // Create pending posting record
-    const { data: postingData, error: postingError } = await supabase
+    const { data: postingData } = await supabase
       .from('postings')
       .insert({
         user_id: job.userId,
@@ -54,7 +67,7 @@ export async function runAutomation(job: AutomationJob) {
     const pid = postingData?.id;
 
     try {
-      const postingUrl = await postToPlatform(platformId, item, settings);
+      const postingUrl = await postToPlatform(platformId, item, settings, job.userId);
       if (pid) {
         await supabase
           .from('postings')
@@ -65,13 +78,13 @@ export async function runAutomation(job: AutomationJob) {
           })
           .eq('id', pid);
 
-        // Send success email notification
-        const { data: userData } = await supabase.auth.admin.getUserById(job.userId);
-        if (userData?.user?.email) {
-          const email = generatePostingSuccessEmail(item.title, platformId, postingUrl || undefined);
-          email.to = userData.user.email;
-          await sendEmail(email);
-        }
+        await createNotification(
+          job.userId,
+          'success',
+          `Posted to ${platformId}`,
+          `"${item.title}" was successfully posted${postingUrl ? ' and is now live' : ''}.`,
+          { itemId: job.itemId, platform: platformId, url: postingUrl || null }
+        );
       }
     } catch (err: any) {
       console.error(`Automation failed for ${platformId}:`, err);
@@ -85,214 +98,150 @@ export async function runAutomation(job: AutomationJob) {
           })
           .eq('id', pid);
 
-        // Send failure email notification
-        const { data: userData } = await supabase.auth.admin.getUserById(job.userId);
-        if (userData?.user?.email) {
-          const email = generatePostingFailureEmail(item.title, platformId, err.message);
-          email.to = userData.user.email;
-          await sendEmail(email);
-        }
+        await createNotification(
+          job.userId,
+          'error',
+          `Failed to post to ${platformId}`,
+          `"${item.title}" could not be posted: ${err.message}`,
+          { itemId: job.itemId, platform: platformId, error: err.message }
+        );
       }
     }
   }
 }
 
-async function postToPlatform(platformId: string, item: ItemData, settings: Record<string, string>, retryCount = 0): Promise<string | null> {
-  const maxRetries = 3;
-  const baseDelay = 2000; // 2 seconds
+// ─── Encryption ─────────────────────────────────────────────────────────────
 
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+
+async function deriveKey(keyStr: string): Promise<CryptoKey> {
+  const enc = new TextEncoder();
+  const keyData = enc.encode(keyStr.padEnd(32, '0').slice(0, 32));
+  return crypto.subtle.importKey('raw', keyData, 'AES-GCM', false, ['encrypt', 'decrypt']);
+}
+
+async function encryptData(data: any): Promise<string | null> {
+  if (!ENCRYPTION_KEY) return JSON.stringify(data);
   try {
-    // Check if platform has API support and if credentials are configured
-    if (hasAPISupport(platformId)) {
-      const config = getPlatformAPIConfig(platformId, settings);
-      // For Facebook, check if we have an access token
-      if (platformId === 'facebook_marketplace' && config.accessToken) {
-        // Convert item to ClothingItem for API function (adding missing properties)
-        const apiItem: ClothingItem = {
-          id: item.id,
-          title: item.title,
-          description: item.description,
-          price: item.price,
-          category: item.category,
-          size: item.size,
-          brand: item.brand,
-          condition: item.condition as 'new' | 'like_new' | 'good' | 'fair' | 'poor',
-          color: item.color,
-          photos: item.photos,
-          platforms: (item as any).platforms || [],
-          status: (item as any).status || 'draft',
-          createdAt: (item as any).createdAt || new Date().toISOString(),
-          updatedAt: (item as any).updatedAt || new Date().toISOString()
-        };
-        
-        const apiResponse = await postToFacebookAPI(apiItem, config);
-        if (apiResponse.success) {
-          return apiResponse.url ?? null;
-        }
-        // If API fails, fall back to browser automation
-        console.warn(`Facebook API failed: ${apiResponse.error}. Falling back to browser automation.`);
-      }
-    }
-
-    // Browser selection based on user settings or env var fallback
-    const browserType = settings.automation_browser || process.env.USE_CLOAK_BROWSER === 'true' ? 'cloakbrowser' : 'browserbase';
-    const useCloakBrowser = browserType === 'cloakbrowser';
-    const useBrowserbase = browserType === 'browserbase' && !!process.env.BROWSERBASE_API_KEY && !!process.env.BROWSERBASE_PROJECT_ID;
-    let browser: any;
-    let page: Page;
-
-    if (useCloakBrowser) {
-      // CloakBrowser: stealth Chromium with anti-detection
-      const isVercel = process.env.VERCEL === '1';
-      if (isVercel) {
-        throw new Error('CloakBrowser requires local environment. Use Browserbase for Vercel deployment.');
-      }
-      const cloakModule = await import('cloakbrowser');
-      browser = await (cloakModule as any).chromium.launch({
-        headless: false,
-        // CloakBrowser handles stealth internally
-      });
-      const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-      page = await context.newPage();
-      console.log('CloakBrowser session started');
-    } else if (useBrowserbase) {
-      // Browserbase: cloud headless browser with proxies
-      const bb = new Browserbase({ apiKey: process.env.BROWSERBASE_API_KEY! });
-      const session = await bb.sessions.create({
-        projectId: process.env.BROWSERBASE_PROJECT_ID!,
-        proxies: true,
-      });
-      browser = await chromium.connectOverCDP(session.connectUrl);
-      const context = browser.contexts()[0] || await browser.newContext({ viewport: { width: 1280, height: 800 } });
-      page = await context.newPage();
-      console.log(`Browserbase session started: ${session.id}`);
-    } else {
-      // Fallback: local Playwright
-      const isVercel = process.env.VERCEL === '1';
-      if (isVercel) {
-        throw new Error('Browserbase API key is required for automation on Vercel. Set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID environment variables.');
-      }
-      browser = await chromium.launch({
-        headless: false,
-        args: [
-          '--disable-blink-features=AutomationControlled',
-          '--disable-web-security',
-          '--disable-features=IsolateOrigins,site-per-process',
-          '--disable-site-isolation-trials',
-          '--disable-setuid-sandbox',
-          '--no-sandbox',
-          '--window-size=1280,800',
-        ],
-      });
-      const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-      page = await context.newPage();
-    }
-
-    // Inject anti-detection script
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-      (window as any).chrome = { runtime: {} };
-    });
-
-    let postingUrl: string | null = null;
-
-    try {
-      switch (platformId) {
-        case 'facebook_marketplace':
-          postingUrl = await postToFacebook(page, item, settings);
-          break;
-        case 'yaga':
-          postingUrl = await postToYaga(page, item, settings);
-          break;
-        case 'gumtree':
-          postingUrl = await postToGumtree(page, item, settings);
-          break;
-        case 'olx':
-          postingUrl = await postToOlx(page, item, settings);
-          break;
-        case 'junkmail':
-          postingUrl = await postToJunkMail(page, item, settings);
-          break;
-        case 'whatsapp_groups':
-          postingUrl = await postToWhatsAppGroups(page, item, settings);
-          break;
-        default:
-          throw new Error('Unknown platform');
-      }
-    } finally {
-      // Close browser session
-      try {
-        await browser.close();
-      } catch {
-        // ignore close errors
-      }
-    }
-
-    return postingUrl;
-  } catch (err: any) {
-    console.error(`Posting to ${platformId} failed (attempt ${retryCount + 1}/${maxRetries}):`, err);
-
-    if (retryCount < maxRetries) {
-      const delay = baseDelay * Math.pow(2, retryCount); // Exponential backoff
-      console.log(`Retrying in ${delay}ms...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return postToPlatform(platformId, item, settings, retryCount + 1);
-    }
-
-    throw err;
+    const key = await deriveKey(ENCRYPTION_KEY);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const plaintext = new TextEncoder().encode(JSON.stringify(data));
+    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
+    const combined = new Uint8Array(iv.length + ciphertext.byteLength);
+    combined.set(iv);
+    combined.set(new Uint8Array(ciphertext), iv.length);
+    return btoa(String.fromCharCode(...combined));
+  } catch (err) {
+    console.warn('Cookie encryption failed, storing plain:', err);
+    return JSON.stringify(data);
   }
 }
 
-interface ItemData {
-  id: string;
-  user_id: string;
-  title: string;
-  description: string;
-  price: number;
-  category: string;
-  size: string;
-  brand: string;
-  condition: string;
-  color: string;
-  photos: string[];
+async function decryptData(encrypted: string): Promise<any> {
+  if (!ENCRYPTION_KEY) return JSON.parse(encrypted);
+  // Heuristic: if it looks like plain JSON, return as-is (migration path)
+  if (encrypted.trim().startsWith('[') || encrypted.trim().startsWith('{')) {
+    return JSON.parse(encrypted);
+  }
+  try {
+    const key = await deriveKey(ENCRYPTION_KEY);
+    const combined = Uint8Array.from(atob(encrypted), c => c.charCodeAt(0));
+    const iv = combined.slice(0, 12);
+    const ciphertext = combined.slice(12);
+    const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+    return JSON.parse(new TextDecoder().decode(plaintext));
+  } catch (err) {
+    console.warn('Cookie decryption failed, trying plain JSON:', err);
+    return JSON.parse(encrypted);
+  }
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Cookie Management ──────────────────────────────────────────────────────
 
-async function downloadPhoto(photoUrl: string): Promise<string> {
-  // If it's already a local path, return it
-  if (!photoUrl.startsWith('http')) {
-    const localPath = path.join(process.cwd(), 'public', photoUrl);
-    if (fs.existsSync(localPath)) return localPath;
+async function getStoredCookies(userId: string, platform: string): Promise<any[] | null> {
+  const { data } = await supabase
+    .from('platform_cookies')
+    .select('cookies')
+    .eq('user_id', userId)
+    .eq('platform', platform)
+    .single();
+  if (!data?.cookies) return null;
+  try {
+    const decrypted = await decryptData(data.cookies);
+    return Array.isArray(decrypted) ? decrypted : null;
+  } catch {
+    return null;
+  }
+}
+
+async function saveCookies(userId: string, platform: string, cookies: any[]) {
+  const encrypted = await encryptData(cookies);
+  await supabase
+    .from('platform_cookies')
+    .upsert({
+      user_id: userId,
+      platform,
+      cookies: encrypted,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,platform' });
+}
+
+// ─── Browser Session ──────────────────────────────────────────────────────
+
+async function createBrowserSession(userId: string, platform: string) {
+  const browser = await launch({ headless: true });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+
+  const storedCookies = await getStoredCookies(userId, platform);
+  if (storedCookies && storedCookies.length > 0) {
+    await context.addCookies(storedCookies);
   }
 
-  // Download from URL (Supabase Storage or external)
-  const res = await fetch(photoUrl);
-  if (!res.ok) throw new Error(`Failed to download photo: ${photoUrl}`);
-  
-  const buffer = Buffer.from(await res.arrayBuffer());
-  const ext = path.extname(new URL(photoUrl).pathname) || '.jpg';
-  const tmpPath = path.join(os.tmpdir(), `photo-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  fs.writeFileSync(tmpPath, buffer);
-  return tmpPath;
+  const page = await context.newPage();
+
+  return { browser, context, page };
 }
 
-function getPhotoPath(photoUrl: string): string {
-  // Legacy fallback for local paths
-  return path.join(process.cwd(), 'public', photoUrl);
+async function closeBrowserSession(browser: Browser, context: BrowserContext, userId: string, platform: string) {
+  try {
+    const cookies = await context.cookies();
+    if (cookies.length > 0) {
+      await saveCookies(userId, platform, cookies);
+    }
+  } catch (e) {
+    console.warn('Failed to save cookies:', e);
+  }
+  try {
+    await browser.close();
+  } catch {
+    // ignore
+  }
 }
+
+// ─── Human-like delays ────────────────────────────────────────────────────
+
+async function humanDelay(page: Page, minMs = 200, maxMs = 800) {
+  const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+  await page.waitForTimeout(delay);
+}
+
+// ─── Safe helpers ───────────────────────────────────────────────────────────
 
 async function safeFill(page: Page, selectors: string[], value: string, label: string) {
   for (const sel of selectors) {
     try {
       const loc = page.locator(sel).first();
       if (await loc.count() > 0) {
+        await loc.scrollIntoViewIfNeeded();
+        await humanDelay(page, 100, 300);
+        await loc.click();
+        await humanDelay(page, 50, 150);
         await loc.fill(value);
         console.log(`Filled ${label} with selector: ${sel}`);
         return true;
       }
     } catch {
-      // continue to next selector
+      // continue
     }
   }
   console.warn(`Could not fill ${label}`);
@@ -304,6 +253,8 @@ async function safeClick(page: Page, selectors: string[], label: string) {
     try {
       const loc = page.locator(sel).first();
       if (await loc.count() > 0) {
+        await loc.scrollIntoViewIfNeeded();
+        await humanDelay(page, 100, 300);
         await loc.click();
         console.log(`Clicked ${label} with selector: ${sel}`);
         return true;
@@ -333,16 +284,122 @@ async function safeUpload(page: Page, selectors: string[], filePath: string, lab
   return false;
 }
 
-async function waitForLogin(page: Page, platformName: string, loginUrlPatterns: string[], targetUrlPattern: RegExp) {
-  const url = page.url();
-  const needsLogin = loginUrlPatterns.some(p => url.includes(p));
-  if (needsLogin) {
-    console.log(`Please log in to ${platformName} manually in the opened browser window...`);
-    try {
-      await page.waitForURL(targetUrlPattern, { timeout: 120000 });
-    } catch {
-      // If navigation timeout, just wait a bit more then continue
-      await page.waitForTimeout(3000);
+// ─── Screenshot on failure ────────────────────────────────────────────────
+
+async function screenshotOnFailure(page: Page, userId: string, platform: string, itemId: string) {
+  try {
+    const buffer = await page.screenshot({ fullPage: true });
+    const fileName = `screenshots/${userId}/${platform}/${itemId}-${Date.now()}.png`;
+    const { error } = await supabase.storage.from('uploads').upload(fileName, buffer, {
+      contentType: 'image/png',
+      upsert: true,
+    });
+    if (!error) {
+      const { data } = supabase.storage.from('uploads').getPublicUrl(fileName);
+      console.log(`Screenshot saved: ${data.publicUrl}`);
+      return data.publicUrl;
+    }
+  } catch (e) {
+    console.warn('Failed to take screenshot:', e);
+  }
+  return null;
+}
+
+// ─── Photo download ───────────────────────────────────────────────────────
+
+async function downloadPhoto(photoUrl: string): Promise<string> {
+  if (!photoUrl.startsWith('http')) {
+    const localPath = path.join(process.cwd(), 'public', photoUrl);
+    if (fs.existsSync(localPath)) return localPath;
+  }
+
+  const res = await fetch(photoUrl, { redirect: 'follow' });
+  if (!res.ok) throw new Error(`Failed to download photo: ${photoUrl} (status ${res.status})`);
+
+  const buffer = Buffer.from(await res.arrayBuffer());
+  const ext = path.extname(new URL(photoUrl).pathname) || '.jpg';
+  const tmpPath = path.join(os.tmpdir(), `photo-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  fs.writeFileSync(tmpPath, buffer);
+  return tmpPath;
+}
+
+// ─── Login detection ────────────────────────────────────────────────────────
+
+async function isLoginPage(page: Page): Promise<boolean> {
+  const url = page.url().toLowerCase();
+  const loginIndicators = ['login', 'signin', 'sign-in', 'auth', 'authenticate', 'password'];
+  if (loginIndicators.some(ind => url.includes(ind))) return true;
+  try {
+    const count = await page.locator('input[type="password"], form:has(input[type="password"])').count();
+    if (count > 0) return true;
+  } catch { /* ignore */ }
+  return false;
+}
+
+// ─── Core posting engine ────────────────────────────────────────────────────
+
+async function postToPlatform(platformId: string, item: ItemData, settings: Record<string, string>, userId: string, retryCount = 0): Promise<string | null> {
+  const maxRetries = 2;
+  const baseDelay = 3000;
+
+  let browser: Browser | undefined;
+  let context: BrowserContext | undefined;
+  let page: Page | undefined;
+  let screenshotUrl: string | null = null;
+
+  try {
+    const session = await createBrowserSession(userId, platformId);
+    browser = session.browser;
+    context = session.context;
+    page = session.page;
+
+    let postingUrl: string | null = null;
+
+    switch (platformId) {
+      case 'facebook_marketplace':
+        postingUrl = await postToFacebook(page, item, settings);
+        break;
+      case 'yaga':
+        postingUrl = await postToYaga(page, item, settings);
+        break;
+      case 'gumtree':
+        postingUrl = await postToGumtree(page, item, settings);
+        break;
+      case 'olx':
+        postingUrl = await postToOlx(page, item, settings);
+        break;
+      case 'junkmail':
+        postingUrl = await postToJunkMail(page, item, settings);
+        break;
+      default:
+        throw new Error(`Unknown platform: ${platformId}`);
+    }
+
+    return postingUrl;
+  } catch (err: any) {
+    console.error(`Posting to ${platformId} failed (attempt ${retryCount + 1}/${maxRetries + 1}):`, err);
+
+    if (page) {
+      screenshotUrl = await screenshotOnFailure(page, userId, platformId, item.id);
+    }
+
+    if (retryCount < maxRetries) {
+      const delay = baseDelay * Math.pow(2, retryCount);
+      console.log(`Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+
+      if (err.message?.includes('login') || err.message?.includes('auth') || err.message?.includes('session')) {
+        await supabase.from('platform_cookies').delete().eq('user_id', userId).eq('platform', platformId);
+        console.log(`Cleared cookies for ${platformId} due to auth error`);
+      }
+
+      return postToPlatform(platformId, item, settings, userId, retryCount + 1);
+    }
+
+    throw new Error(`${err.message}${screenshotUrl ? ` (screenshot: ${screenshotUrl})` : ''}`);
+  } finally {
+    if (browser && context) {
+      await closeBrowserSession(browser, context, userId, platformId);
     }
   }
 }
@@ -353,19 +410,19 @@ async function postToFacebook(page: Page, item: ItemData, settings: Record<strin
   await page.goto('https://www.facebook.com/marketplace/create/item');
   await page.waitForTimeout(3000);
 
-  await waitForLogin(page, 'Facebook', ['login'], /marketplace\/create/);
+  if (await isLoginPage(page)) {
+    throw new Error('Facebook login required. Please authenticate via Settings > Platform Authentication.');
+  }
 
-  // Upload photos (up to 10)
   for (const photo of item.photos.slice(0, 10)) {
     const photoPath = await downloadPhoto(photo);
     await safeUpload(page, [
       'input[type="file"]',
       'input[accept*="image"]',
     ], photoPath, 'photo');
-    await page.waitForTimeout(1500);
+    await humanDelay(page, 1500, 2500);
   }
 
-  // Title
   await safeFill(page, [
     'input[placeholder*="title" i]',
     'input[placeholder*="What" i]',
@@ -374,7 +431,6 @@ async function postToFacebook(page: Page, item: ItemData, settings: Record<strin
     '[role="dialog"] input[type="text"]',
   ], item.title, 'title');
 
-  // Price
   await safeFill(page, [
     'input[placeholder*="price" i]',
     'input[type="number"]',
@@ -382,8 +438,7 @@ async function postToFacebook(page: Page, item: ItemData, settings: Record<strin
     'label:has-text("Price") ~ input',
   ], String(item.price), 'price');
 
-  // Description
-  const fullDesc = buildFullDescription(item);
+  const fullDesc = await getPlatformDescription(item, 'facebook_marketplace');
   await safeFill(page, [
     'textarea[placeholder*="description" i]',
     'textarea[placeholder*="Describe" i]',
@@ -392,7 +447,6 @@ async function postToFacebook(page: Page, item: ItemData, settings: Record<strin
     '[role="dialog"] textarea',
   ], fullDesc, 'description');
 
-  // Category - try to select Clothing/Shoes/Accessories
   const categoryValue = mapFacebookCategory(item.category);
   await safeClick(page, [
     `text="${categoryValue}"`,
@@ -402,7 +456,6 @@ async function postToFacebook(page: Page, item: ItemData, settings: Record<strin
     'span:has-text("Accessories")',
   ], 'category');
 
-  // Condition
   const conditionLabel = mapFacebookCondition(item.condition);
   if (conditionLabel) {
     await safeClick(page, [
@@ -411,7 +464,6 @@ async function postToFacebook(page: Page, item: ItemData, settings: Record<strin
     ], 'condition');
   }
 
-  // Location
   if (settings['location']) {
     await safeFill(page, [
       'input[placeholder*="location" i]',
@@ -419,32 +471,43 @@ async function postToFacebook(page: Page, item: ItemData, settings: Record<strin
       'label:has-text("Location") + input',
       'label:has-text("Location") ~ input',
     ], settings['location'], 'location');
-    await page.waitForTimeout(1000);
+    await humanDelay(page, 800, 1500);
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
   }
 
-  // Try to submit and capture URL
-  try {
-    await safeClick(page, [
-      'button[type="submit"]',
-      'div[role="button"]:has-text("Next")',
-      'div[role="button"]:has-text("Publish")',
-      'span:has-text("Post")',
-    ], 'submit');
+  const submitted = await safeClick(page, [
+    'button[type="submit"]',
+    'div[role="button"]:has-text("Next")',
+    'div[role="button"]:has-text("Publish")',
+    'span:has-text("Post")',
+    'div[aria-label*="Publish" i]',
+    'div[aria-label*="Post" i]',
+  ], 'submit');
 
-    // Wait for navigation to confirm page or listing page
-    await page.waitForTimeout(5000);
-    const currentUrl = page.url();
-    if (currentUrl.includes('/marketplace/') && !currentUrl.includes('/create/')) {
-      return currentUrl;
-    }
-  } catch {
-    // Submission failed or blocked, leave form open for manual submit
+  if (!submitted) {
+    throw new Error('Could not find submit button on Facebook Marketplace');
   }
 
-  console.log('Facebook Marketplace form pre-filled. Please review and submit manually.');
-  return null;
+  await page.waitForTimeout(5000);
+
+  const currentUrl = page.url();
+  if (currentUrl.includes('checkpoint') || currentUrl.includes('captcha') || currentUrl.includes('challenge')) {
+    throw new Error('Facebook security check (CAPTCHA) detected. Please log in manually and try again.');
+  }
+
+  if (currentUrl.includes('/marketplace/') && !currentUrl.includes('/create/')) {
+    return currentUrl;
+  }
+
+  try {
+    const successText = await page.locator('text=/posted|published|success/i').count();
+    if (successText > 0) {
+      return 'https://www.facebook.com/marketplace';
+    }
+  } catch { /* ignore */ }
+
+  throw new Error('Facebook submission did not navigate to confirmation page');
 }
 
 // ─── Yaga ─────────────────────────────────────────────────────────────────
@@ -453,19 +516,19 @@ async function postToYaga(page: Page, item: ItemData, settings: Record<string, s
   await page.goto('https://yaga.co.za/sell');
   await page.waitForTimeout(3000);
 
-  await waitForLogin(page, 'Yaga', ['login', 'signin', 'auth'], /sell/);
+  if (await isLoginPage(page)) {
+    throw new Error('Yaga login required. Please authenticate via Settings > Platform Authentication.');
+  }
 
-  // Upload photos
   for (const photo of item.photos.slice(0, 5)) {
     const photoPath = await downloadPhoto(photo);
     await safeUpload(page, [
       'input[type="file"]',
       'input[accept*="image"]',
     ], photoPath, 'photo');
-    await page.waitForTimeout(2000);
+    await humanDelay(page, 2000, 3000);
   }
 
-  // Title
   await safeFill(page, [
     'input[name="title"]',
     'input[placeholder*="title" i]',
@@ -473,7 +536,6 @@ async function postToYaga(page: Page, item: ItemData, settings: Record<string, s
     'label:has-text("Title") input',
   ], item.title, 'title');
 
-  // Price
   await safeFill(page, [
     'input[name="price"]',
     'input[placeholder*="price" i]',
@@ -481,8 +543,7 @@ async function postToYaga(page: Page, item: ItemData, settings: Record<string, s
     'label:has-text("Price") input',
   ], String(item.price), 'price');
 
-  // Description
-  const fullDesc = buildFullDescription(item);
+  const fullDesc = await getPlatformDescription(item, 'yaga');
   await safeFill(page, [
     'textarea[name="description"]',
     'textarea[placeholder*="description" i]',
@@ -490,7 +551,6 @@ async function postToYaga(page: Page, item: ItemData, settings: Record<string, s
     'label:has-text("Description") textarea',
   ], fullDesc, 'description');
 
-  // Category
   const yagaCategory = mapYagaCategory(item.category);
   if (yagaCategory) {
     await safeClick(page, [
@@ -499,7 +559,6 @@ async function postToYaga(page: Page, item: ItemData, settings: Record<string, s
     ], 'category');
   }
 
-  // Brand
   if (item.brand) {
     await safeFill(page, [
       'input[name="brand"]',
@@ -508,14 +567,12 @@ async function postToYaga(page: Page, item: ItemData, settings: Record<string, s
     ], item.brand, 'brand');
   }
 
-  // Size
   await safeFill(page, [
     'input[name="size"]',
     'input[placeholder*="size" i]',
     'label:has-text("Size") input',
   ], item.size, 'size');
 
-  // Condition
   const yagaCondition = mapYagaCondition(item.condition);
   if (yagaCondition) {
     await safeClick(page, [
@@ -524,7 +581,6 @@ async function postToYaga(page: Page, item: ItemData, settings: Record<string, s
     ], 'condition');
   }
 
-  // Color
   if (item.color) {
     await safeFill(page, [
       'input[name="color"]',
@@ -533,26 +589,30 @@ async function postToYaga(page: Page, item: ItemData, settings: Record<string, s
     ], item.color, 'color');
   }
 
-  // Try to submit and capture URL
-  try {
-    await safeClick(page, [
-      'button[type="submit"]',
-      'button:has-text("Publish")',
-      'button:has-text("Post")',
-      'button:has-text("Sell")',
-    ], 'submit');
+  const submitted = await safeClick(page, [
+    'button[type="submit"]',
+    'button:has-text("Publish")',
+    'button:has-text("Post")',
+    'button:has-text("Sell")',
+    'button:has-text("Submit")',
+  ], 'submit');
 
-    await page.waitForTimeout(5000);
-    const currentUrl = page.url();
-    if (currentUrl.includes('/item/') || currentUrl.includes('/listing/')) {
-      return currentUrl;
-    }
-  } catch {
-    // Submission failed or blocked
+  if (!submitted) {
+    throw new Error('Could not find submit button on Yaga');
   }
 
-  console.log('Yaga form pre-filled. Please review and submit manually.');
-  return null;
+  await page.waitForTimeout(5000);
+  const currentUrl = page.url();
+  if (currentUrl.includes('/item/') || currentUrl.includes('/listing/')) {
+    return currentUrl;
+  }
+
+  try {
+    const success = await page.locator('text=/posted|published|success|live/i').count();
+    if (success > 0) return 'https://yaga.co.za';
+  } catch { /* ignore */ }
+
+  throw new Error('Yaga submission did not navigate to confirmation page');
 }
 
 // ─── Gumtree ──────────────────────────────────────────────────────────────
@@ -561,9 +621,10 @@ async function postToGumtree(page: Page, item: ItemData, settings: Record<string
   await page.goto('https://www.gumtree.co.za/postad');
   await page.waitForTimeout(3000);
 
-  await waitForLogin(page, 'Gumtree', ['login', 'signin'], /postad/);
+  if (await isLoginPage(page)) {
+    throw new Error('Gumtree login required. Please authenticate via Settings > Platform Authentication.');
+  }
 
-  // Category selection - try to navigate to Clothing & Accessories
   const gumtreeCategory = mapGumtreeCategory(item.category);
   if (gumtreeCategory) {
     await safeClick(page, [
@@ -572,10 +633,9 @@ async function postToGumtree(page: Page, item: ItemData, settings: Record<string
       'span:has-text("Clothing")',
       'span:has-text("Accessories")',
     ], 'category');
-    await page.waitForTimeout(2000);
+    await humanDelay(page, 1500, 2500);
   }
 
-  // Title
   await safeFill(page, [
     'input[name="title"]',
     'input[id*="title" i]',
@@ -583,7 +643,6 @@ async function postToGumtree(page: Page, item: ItemData, settings: Record<string
     'label:has-text("Title") input',
   ], item.title, 'title');
 
-  // Price
   await safeFill(page, [
     'input[name="price"]',
     'input[id*="price" i]',
@@ -592,8 +651,7 @@ async function postToGumtree(page: Page, item: ItemData, settings: Record<string
     'label:has-text("Price") input',
   ], String(item.price), 'price');
 
-  // Description
-  const fullDesc = buildFullDescription(item);
+  const fullDesc = await getPlatformDescription(item, 'gumtree');
   await safeFill(page, [
     'textarea[name="description"]',
     'textarea[id*="description" i]',
@@ -601,17 +659,15 @@ async function postToGumtree(page: Page, item: ItemData, settings: Record<string
     'label:has-text("Description") textarea',
   ], fullDesc, 'description');
 
-  // Upload photos
   for (const photo of item.photos.slice(0, 8)) {
     const photoPath = await downloadPhoto(photo);
     await safeUpload(page, [
       'input[type="file"]',
       'input[accept*="image"]',
     ], photoPath, 'photo');
-    await page.waitForTimeout(2000);
+    await humanDelay(page, 1500, 2500);
   }
 
-  // Location
   if (settings['location']) {
     await safeFill(page, [
       'input[name="location"]',
@@ -622,7 +678,6 @@ async function postToGumtree(page: Page, item: ItemData, settings: Record<string
     ], settings['location'], 'location');
   }
 
-  // Contact info from settings
   if (settings['gumtree_email']) {
     await safeFill(page, [
       'input[type="email"]',
@@ -632,8 +687,30 @@ async function postToGumtree(page: Page, item: ItemData, settings: Record<string
     ], settings['gumtree_email'], 'email');
   }
 
-  console.log('Gumtree form pre-filled. Please review and submit manually.');
-  return null;
+  const submitted = await safeClick(page, [
+    'button[type="submit"]',
+    'button:has-text("Post")',
+    'button:has-text("Publish")',
+    'button:has-text("Submit")',
+    'input[type="submit"]',
+  ], 'submit');
+
+  if (!submitted) {
+    throw new Error('Could not find submit button on Gumtree');
+  }
+
+  await page.waitForTimeout(5000);
+  const currentUrl = page.url();
+  if (currentUrl.includes('/my ads') || currentUrl.includes('/my-ads') || currentUrl.includes('/ad/')) {
+    return currentUrl;
+  }
+
+  try {
+    const success = await page.locator('text=/posted|published|success|live|ad submitted/i').count();
+    if (success > 0) return 'https://www.gumtree.co.za';
+  } catch { /* ignore */ }
+
+  throw new Error('Gumtree submission did not navigate to confirmation page');
 }
 
 // ─── OLX ───────────────────────────────────────────────────────────────────
@@ -642,9 +719,10 @@ async function postToOlx(page: Page, item: ItemData, settings: Record<string, st
   await page.goto('https://www.olx.co.za/post-ad');
   await page.waitForTimeout(3000);
 
-  await waitForLogin(page, 'OLX', ['login', 'signin'], /post-ad/);
+  if (await isLoginPage(page)) {
+    throw new Error('OLX login required. Please authenticate via Settings > Platform Authentication.');
+  }
 
-  // Category selection
   const olxCategory = mapOlxCategory(item.category);
   if (olxCategory) {
     await safeClick(page, [
@@ -653,10 +731,9 @@ async function postToOlx(page: Page, item: ItemData, settings: Record<string, st
       'span:has-text("Clothes")',
       'span:has-text("Fashion")',
     ], 'category');
-    await page.waitForTimeout(2000);
+    await humanDelay(page, 1500, 2500);
   }
 
-  // Title
   await safeFill(page, [
     'input[name="title"]',
     'input[id*="title" i]',
@@ -664,7 +741,6 @@ async function postToOlx(page: Page, item: ItemData, settings: Record<string, st
     'label:has-text("Title") input',
   ], item.title, 'title');
 
-  // Price
   await safeFill(page, [
     'input[name="price"]',
     'input[id*="price" i]',
@@ -673,8 +749,7 @@ async function postToOlx(page: Page, item: ItemData, settings: Record<string, st
     'label:has-text("Price") input',
   ], String(item.price), 'price');
 
-  // Description
-  const fullDesc = buildFullDescription(item);
+  const fullDesc = await getPlatformDescription(item, 'olx');
   await safeFill(page, [
     'textarea[name="description"]',
     'textarea[id*="description" i]',
@@ -682,17 +757,15 @@ async function postToOlx(page: Page, item: ItemData, settings: Record<string, st
     'label:has-text("Description") textarea',
   ], fullDesc, 'description');
 
-  // Upload photos
   for (const photo of item.photos.slice(0, 8)) {
     const photoPath = await downloadPhoto(photo);
     await safeUpload(page, [
       'input[type="file"]',
       'input[accept*="image"]',
     ], photoPath, 'photo');
-    await page.waitForTimeout(2000);
+    await humanDelay(page, 1500, 2500);
   }
 
-  // Location
   if (settings['location']) {
     await safeFill(page, [
       'input[name="location"]',
@@ -700,12 +773,11 @@ async function postToOlx(page: Page, item: ItemData, settings: Record<string, st
       'input[placeholder*="location" i]',
       'label:has-text("Location") input',
     ], settings['location'], 'location');
-    await page.waitForTimeout(1000);
+    await humanDelay(page, 800, 1500);
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
   }
 
-  // Contact
   if (settings['olx_email']) {
     await safeFill(page, [
       'input[type="email"]',
@@ -715,8 +787,30 @@ async function postToOlx(page: Page, item: ItemData, settings: Record<string, st
     ], settings['olx_email'], 'email');
   }
 
-  console.log('OLX form pre-filled. Please review and submit manually.');
-  return null;
+  const submitted = await safeClick(page, [
+    'button[type="submit"]',
+    'button:has-text("Post")',
+    'button:has-text("Publish")',
+    'button:has-text("Submit")',
+    'input[type="submit"]',
+  ], 'submit');
+
+  if (!submitted) {
+    throw new Error('Could not find submit button on OLX');
+  }
+
+  await page.waitForTimeout(5000);
+  const currentUrl = page.url();
+  if (currentUrl.includes('/ad/') || currentUrl.includes('/myads')) {
+    return currentUrl;
+  }
+
+  try {
+    const success = await page.locator('text=/posted|published|success|live|ad submitted/i').count();
+    if (success > 0) return 'https://www.olx.co.za';
+  } catch { /* ignore */ }
+
+  throw new Error('OLX submission did not navigate to confirmation page');
 }
 
 // ─── Junk Mail ─────────────────────────────────────────────────────────────
@@ -725,9 +819,10 @@ async function postToJunkMail(page: Page, item: ItemData, settings: Record<strin
   await page.goto('https://www.junkmail.co.za/post-ad');
   await page.waitForTimeout(3000);
 
-  await waitForLogin(page, 'Junk Mail', ['login', 'signin'], /post-ad/);
+  if (await isLoginPage(page)) {
+    throw new Error('Junk Mail login required. Please authenticate via Settings > Platform Authentication.');
+  }
 
-  // Category selection
   const junkmailCategory = mapJunkmailCategory(item.category);
   if (junkmailCategory) {
     await safeClick(page, [
@@ -736,10 +831,9 @@ async function postToJunkMail(page: Page, item: ItemData, settings: Record<strin
       'span:has-text("Clothing")',
       'span:has-text("Fashion")',
     ], 'category');
-    await page.waitForTimeout(2000);
+    await humanDelay(page, 1500, 2500);
   }
 
-  // Title
   await safeFill(page, [
     'input[name="title"]',
     'input[id*="title" i]',
@@ -747,7 +841,6 @@ async function postToJunkMail(page: Page, item: ItemData, settings: Record<strin
     'label:has-text("Title") input',
   ], item.title, 'title');
 
-  // Price
   await safeFill(page, [
     'input[name="price"]',
     'input[id*="price" i]',
@@ -756,8 +849,7 @@ async function postToJunkMail(page: Page, item: ItemData, settings: Record<strin
     'label:has-text("Price") input',
   ], String(item.price), 'price');
 
-  // Description
-  const fullDesc = buildFullDescription(item);
+  const fullDesc = await getPlatformDescription(item, 'junkmail');
   await safeFill(page, [
     'textarea[name="description"]',
     'textarea[id*="description" i]',
@@ -765,17 +857,15 @@ async function postToJunkMail(page: Page, item: ItemData, settings: Record<strin
     'label:has-text("Description") textarea',
   ], fullDesc, 'description');
 
-  // Upload photos
   for (const photo of item.photos.slice(0, 6)) {
     const photoPath = await downloadPhoto(photo);
     await safeUpload(page, [
       'input[type="file"]',
       'input[accept*="image"]',
     ], photoPath, 'photo');
-    await page.waitForTimeout(2000);
+    await humanDelay(page, 1500, 2500);
   }
 
-  // Location
   if (settings['location']) {
     await safeFill(page, [
       'input[name="location"]',
@@ -785,7 +875,6 @@ async function postToJunkMail(page: Page, item: ItemData, settings: Record<strin
     ], settings['location'], 'location');
   }
 
-  // Contact
   if (settings['junkmail_email']) {
     await safeFill(page, [
       'input[type="email"]',
@@ -795,99 +884,87 @@ async function postToJunkMail(page: Page, item: ItemData, settings: Record<strin
     ], settings['junkmail_email'], 'email');
   }
 
-  console.log('Junk Mail form pre-filled. Please review and submit manually.');
-  return null;
-}
+  const submitted = await safeClick(page, [
+    'button[type="submit"]',
+    'button:has-text("Post")',
+    'button:has-text("Publish")',
+    'button:has-text("Submit")',
+    'input[type="submit"]',
+  ], 'submit');
 
-// ─── WhatsApp Groups ───────────────────────────────────────────────────────
-
-async function postToWhatsAppGroups(page: Page, item: ItemData, settings: Record<string, string>): Promise<string | null> {
-  const groupLinks = settings['whatsapp_groups'];
-  if (!groupLinks) {
-    throw new Error('No WhatsApp groups configured. Please add group links in Settings.');
+  if (!submitted) {
+    throw new Error('Could not find submit button on Junk Mail');
   }
 
-  const groups = groupLinks.split(',').map(g => g.trim()).filter(g => g.length > 0);
-  if (groups.length === 0) {
-    throw new Error('No WhatsApp groups configured. Please add group links in Settings.');
-  }
-
-  await page.goto('https://web.whatsapp.com');
   await page.waitForTimeout(5000);
-
-  // Wait for user to scan QR code if not logged in
-  await waitForLogin(page, 'WhatsApp', ['login', 'auth', 'scan'], /web.whatsapp.com\/$/);
-
-  const fullDesc = buildFullDescription(item);
-  
-  // Get custom message template from settings, or use default
-  const template = settings['whatsapp_message_template'] || 
-    `🛍️ *{title}*\n💰 R{price}\n\n📝 {description}\n\nCondition: {condition}\nSize: {size}{brand_line}{color_line}`;
-    
-  // Replace placeholders in template
-  const message = template
-    .replace('{title}', item.title)
-    .replace('{price}', String(item.price))
-    .replace('{description}', item.description)
-    .replace('{condition}', item.condition)
-    .replace('{size}', item.size)
-    .replace('{brand_line}', item.brand ? `\nBrand: ${item.brand}` : '')
-    .replace('{color_line}', item.color ? `\nColor: ${item.color}` : '')
-    .replace('{full_description}', fullDesc);
-
-  let postedCount = 0;
-
-  for (const groupLink of groups) {
-    try {
-      console.log(`Posting to WhatsApp group: ${groupLink}`);
-      
-      // Navigate to the group via invite link
-      await page.goto(groupLink);
-      await page.waitForTimeout(4000);
-
-      // Check if we're on a valid WhatsApp group page
-      const url = page.url();
-      if (!url.includes('web.whatsapp.com')) {
-        console.warn(`Invalid WhatsApp group link: ${groupLink}`);
-        continue;
-      }
-
-      // Click the message input area
-      await safeClick(page, [
-        '[contenteditable="true"]',
-        'div[data-placeholder="Type a message"]',
-        'div[role="textbox"]',
-      ], 'message input');
-      await page.waitForTimeout(1000);
-
-      // Type the message
-      await page.keyboard.type(message, { delay: 50 });
-      await page.waitForTimeout(500);
-
-      // Send the message
-      await safeClick(page, [
-        '[data-testid="send"]',
-        'button[data-testid="send"]',
-        'span[data-testid="send"]',
-        'button[aria-label="Send"]',
-      ], 'send button');
-      
-      await page.waitForTimeout(2000);
-      postedCount++;
-      console.log(`Posted to WhatsApp group: ${groupLink}`);
-    } catch (err) {
-      console.warn(`Failed to post to WhatsApp group ${groupLink}:`, err);
-    }
+  const currentUrl = page.url();
+  if (currentUrl.includes('/ad/') || currentUrl.includes('/my-ads')) {
+    return currentUrl;
   }
 
-  if (postedCount === 0) {
-    throw new Error('Failed to post to any WhatsApp group. Please check your group links.');
-  }
+  try {
+    const success = await page.locator('text=/posted|published|success|live|ad submitted/i').count();
+    if (success > 0) return 'https://www.junkmail.co.za';
+  } catch { /* ignore */ }
 
-  return `Posted to ${postedCount} WhatsApp group(s)`;
+  throw new Error('Junk Mail submission did not navigate to confirmation page');
 }
 
-// ─── Category / Condition Mappings ──────────────────────────────────────────
+// ─── Mappings ───────────────────────────────────────────────────────────────
+
+async function getPlatformDescription(item: ItemData, platformId: string): Promise<string> {
+  const base = buildFullDescription(item);
+
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return base;
+
+  const toneGuides: Record<string, string> = {
+    facebook_marketplace: 'casual, friendly, conversational, use emojis sparingly',
+    yaga: 'trendy, youthful, fashion-forward, Gen-Z friendly, use hashtags',
+    gumtree: 'straightforward, factual, no fluff, clear bullet points preferred',
+    olx: 'direct, price-focused, minimal, practical',
+    junkmail: 'honest, simple, community-focused',
+  };
+
+  const tone = toneGuides[platformId];
+  if (!tone) return base;
+
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert copywriter for South African online marketplaces. Rewrite the product description to match this tone: ${tone}. Keep all factual details (size, condition, brand, color) but adjust the tone. Keep under 200 words. Return only the rewritten description text, no explanation.`,
+          },
+          {
+            role: 'user',
+            content: `Rewrite this clothing listing description:\n\nTitle: ${item.title}\nDescription: ${base}\n\nReturn only the rewritten description.`,
+          },
+        ],
+        max_tokens: 300,
+        temperature: 0.7,
+      }),
+    });
+
+    const json = await response.json();
+    const result = json.choices?.[0]?.message?.content?.trim();
+    if (result) {
+      console.log(`AI description rewritten for ${platformId}`);
+      return result;
+    }
+  } catch (err) {
+    console.warn(`AI description rewrite failed for ${platformId}:`, err);
+  }
+
+  return base;
+}
 
 function buildFullDescription(item: ItemData): string {
   const parts = [
@@ -953,5 +1030,67 @@ function mapOlxCategory(category: string): string | null {
 
 function mapJunkmailCategory(category: string): string | null {
   return 'Clothing & Fashion';
+}
+
+// ─── Platform Authentication ───────────────────────────────────────────────
+
+export interface AuthSession {
+  sessionId: string;
+  liveViewUrl: string | null;
+}
+
+export async function startPlatformAuth(userId: string, platform: string): Promise<AuthSession> {
+  if (!process.env.BROWSERBASE_API_KEY || !process.env.BROWSERBASE_PROJECT_ID) {
+    throw new Error('BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID are required for platform authentication.');
+  }
+
+  const bb = new Browserbase({ apiKey: process.env.BROWSERBASE_API_KEY });
+  const session = await bb.sessions.create({
+    projectId: process.env.BROWSERBASE_PROJECT_ID,
+    proxies: true,
+    ...(process.env.BROWSERBASE_STEALTH === 'true' ? { stealth: true } : {}),
+  });
+
+  const browser = await chromium.connectOverCDP(session.connectUrl);
+  const context = browser.contexts()[0] || await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+
+  const platformUrl = SA_PLATFORMS.find(p => p.id === platform)?.url;
+  if (platformUrl) {
+    await page.goto(platformUrl);
+  }
+
+  return {
+    sessionId: session.id,
+    liveViewUrl: (session as any).liveViewUrl || null,
+  };
+}
+
+export async function savePlatformAuth(userId: string, platform: string, sessionId: string) {
+  if (!process.env.BROWSERBASE_API_KEY) {
+    throw new Error('BROWSERBASE_API_KEY is required.');
+  }
+
+  const bb = new Browserbase({ apiKey: process.env.BROWSERBASE_API_KEY });
+
+  try {
+    const session = await bb.sessions.retrieve(sessionId);
+    if (!session.connectUrl) {
+      throw new Error('Browser session has no connect URL');
+    }
+    const browser = await chromium.connectOverCDP(session.connectUrl);
+    const context = browser.contexts()[0];
+
+    if (context) {
+      const cookies = await context.cookies();
+      if (cookies.length > 0) {
+        await saveCookies(userId, platform, cookies);
+      }
+      await browser.close();
+    }
+  } catch (err) {
+    console.error('Failed to save platform auth:', err);
+    throw new Error('Failed to capture cookies from browser session. Please try again.');
+  }
 }
 

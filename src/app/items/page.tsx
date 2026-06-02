@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Trash2, Edit3, Grid3X3, List, Package, Filter, CheckCircle, Copy, Tag, Send, Loader2, CheckSquare, Square, Upload, Download } from 'lucide-react';
+import { Plus, Search, Trash2, Edit3, Grid3X3, List, Package, Filter, CheckCircle, Copy, Tag, Send, Loader2, CheckSquare, Square, Upload, Download, SlidersHorizontal, X } from 'lucide-react';
 import PageTransition from '@/components/PageTransition';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ImageLightbox from '@/components/ImageLightbox';
@@ -23,6 +23,12 @@ export default function InventoryPage() {
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [conditionFilter, setConditionFilter] = useState('');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [sort, setSort] = useState('created_at_desc');
+  const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [lightbox, setLightbox] = useState<{ open: boolean; images: string[]; index: number }>({ open: false, images: [], index: 0 });
@@ -32,8 +38,6 @@ export default function InventoryPage() {
   const [confirmBulkPost, setConfirmBulkPost] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0, status: '', errors: [] as string[] });
-  const [csvImportOpen, setCsvImportOpen] = useState(false);
-  const [csvImporting, setCsvImporting] = useState(false);
   const limit = 12;
   const { toast } = useToast();
   const supabase = createClientBrowser();
@@ -45,12 +49,17 @@ export default function InventoryPage() {
     params.set('limit', String(limit));
     if (search) params.set('search', search);
     if (statusFilter) params.set('status', statusFilter);
+    if (categoryFilter) params.set('category', categoryFilter);
+    if (conditionFilter) params.set('condition', conditionFilter);
+    if (minPrice) params.set('minPrice', minPrice);
+    if (maxPrice) params.set('maxPrice', maxPrice);
+    if (sort) params.set('sort', sort);
     const res = await fetch(`/api/items?${params.toString()}`);
     const data = await res.json();
     setItems(data.items || []);
     setTotal(data.total || 0);
     setLoading(false);
-  }, [page, search, statusFilter]);
+  }, [page, search, statusFilter, categoryFilter, conditionFilter, minPrice, maxPrice, sort]);
 
   useEffect(() => {
     fetchItems();
@@ -185,30 +194,6 @@ export default function InventoryPage() {
     }
   };
 
-  const handleCsvImport = async (file: File) => {
-    setCsvImporting(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const res = await fetch('/api/items/import', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Import failed');
-
-      toast(`Imported ${data.imported} items${data.errors.length > 0 ? ` (${data.errors.length} errors)` : ''}`, 'success');
-      setCsvImportOpen(false);
-      fetchItems();
-    } catch (error) {
-      toast('Failed to import CSV', 'error');
-    } finally {
-      setCsvImporting(false);
-    }
-  };
-
   const handleCsvExport = async () => {
     try {
       const params = new URLSearchParams();
@@ -319,19 +304,19 @@ export default function InventoryPage() {
               <Download className="w-4 h-4" />
               Export CSV
             </button>
-            <button
-              onClick={() => setCsvImportOpen(true)}
+            <Link
+              href="/items/import"
               className="inline-flex items-center gap-2 px-4 py-2.5 border border-white/10 text-white/70 rounded-full font-semibold text-sm tracking-wide hover:bg-white/5 transition-colors"
             >
               <Upload className="w-4 h-4" />
               Import CSV
-            </button>
+            </Link>
             {selectedItems.size > 0 && (
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <button
                     onClick={() => setBulkEditPrice(!bulkEditPrice)}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#c4a882] text-[#0c0c0c] rounded-full font-semibold text-sm tracking-wide hover:bg-[#d4b892] transition-colors"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-[accent] text-[#0c0c0c] rounded-full font-semibold text-sm tracking-wide hover:bg-[accent] transition-colors"
                   >
                     Bulk Actions ({selectedItems.size})
                   </button>
@@ -344,11 +329,11 @@ export default function InventoryPage() {
                           value={bulkPriceValue}
                           onChange={e => setBulkPriceValue(e.target.value)}
                           placeholder="0.00"
-                          className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-[#c4a882] text-sm"
+                          className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-[accent] text-sm"
                         />
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={handleBulkPriceUpdate} className="flex-1 px-4 py-2 bg-[#c4a882] text-[#0c0c0c] rounded-full font-semibold text-sm hover:bg-[#d4b892] transition-colors">Update</button>
+                        <button onClick={handleBulkPriceUpdate} className="flex-1 px-4 py-2 bg-[accent] text-[#0c0c0c] rounded-full font-semibold text-sm hover:bg-[accent] transition-colors">Update</button>
                         <button onClick={() => { setBulkEditPrice(false); setBulkPriceValue(''); }} className="flex-1 px-4 py-2 border border-white/10 text-white/70 rounded-full font-medium text-sm hover:bg-white/5 transition-colors">Cancel</button>
                       </div>
                     </div>
@@ -360,14 +345,14 @@ export default function InventoryPage() {
                         <select
                           value={bulkCategoryValue}
                           onChange={e => setBulkCategoryValue(e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white focus:outline-none focus:border-[#c4a882] text-sm"
+                          className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white focus:outline-none focus:border-[accent] text-sm"
                         >
                           <option value="">Select...</option>
                           {['Tops', 'Bottoms', 'Dresses', 'Outerwear', 'Shoes', 'Accessories', 'Bags', 'Jewelry', 'Activewear', 'Other'].map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={handleBulkCategoryUpdate} className="flex-1 px-4 py-2 bg-[#c4a882] text-[#0c0c0c] rounded-full font-semibold text-sm hover:bg-[#d4b892] transition-colors">Update</button>
+                        <button onClick={handleBulkCategoryUpdate} className="flex-1 px-4 py-2 bg-[accent] text-[#0c0c0c] rounded-full font-semibold text-sm hover:bg-[accent] transition-colors">Update</button>
                         <button onClick={() => { setBulkEditCategory(false); setBulkCategoryValue(''); }} className="flex-1 px-4 py-2 border border-white/10 text-white/70 rounded-full font-medium text-sm hover:bg-white/5 transition-colors">Cancel</button>
                       </div>
                     </div>
@@ -379,14 +364,14 @@ export default function InventoryPage() {
                         <select
                           value={bulkConditionValue}
                           onChange={e => setBulkConditionValue(e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white focus:outline-none focus:border-[#c4a882] text-sm"
+                          className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white focus:outline-none focus:border-[accent] text-sm"
                         >
                           <option value="">Select...</option>
                           {['new', 'like_new', 'good', 'fair', 'poor'].map(c => <option key={c} value={c}>{c.replace('_', ' ')}</option>)}
                         </select>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={handleBulkConditionUpdate} className="flex-1 px-4 py-2 bg-[#c4a882] text-[#0c0c0c] rounded-full font-semibold text-sm hover:bg-[#d4b892] transition-colors">Update</button>
+                        <button onClick={handleBulkConditionUpdate} className="flex-1 px-4 py-2 bg-[accent] text-[#0c0c0c] rounded-full font-semibold text-sm hover:bg-[accent] transition-colors">Update</button>
                         <button onClick={() => { setBulkEditCondition(false); setBulkConditionValue(''); }} className="flex-1 px-4 py-2 border border-white/10 text-white/70 rounded-full font-medium text-sm hover:bg-white/5 transition-colors">Cancel</button>
                       </div>
                     </div>
@@ -394,7 +379,7 @@ export default function InventoryPage() {
                 </div>
                 <button
                   onClick={handleBulkMarkSold}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 border border-[#c4a882]/30 text-[#c4a882] rounded-full font-semibold text-sm tracking-wide hover:bg-[#c4a882]/10 transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 border border-[accent]/30 text-[accent] rounded-full font-semibold text-sm tracking-wide hover:bg-[accent]/10 transition-colors"
                 >
                   Mark Sold
                 </button>
@@ -432,54 +417,16 @@ export default function InventoryPage() {
           </div>
         </div>
 
-        {/* CSV Import Modal */}
-        {csvImportOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111111] p-6 space-y-4 shadow-2xl">
-              <div>
-                <h3 className="text-lg font-semibold text-white">Import CSV</h3>
-                <p className="text-sm text-white/60 mt-1">Upload a CSV file to import items in bulk.</p>
-              </div>
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-white/50">CSV File</label>
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={e => {
-                    const file = e.target.files?.[0];
-                    if (file) handleCsvImport(file);
-                  }}
-                  disabled={csvImporting}
-                  className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-[#c4a882] file:text-[#0c0c0c] file:text-sm focus:outline-none focus:border-[#c4a882] text-sm"
-                />
-              </div>
-              <div className="text-xs text-white/40 space-y-1">
-                <p>Expected columns: title, description, price, category, size, brand, condition, color, photos, platforms</p>
-                <p>Photos should be comma-separated URLs. Platforms should be comma-separated.</p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setCsvImportOpen(false)}
-                  disabled={csvImporting}
-                  className="flex-1 px-4 py-2 border border-white/10 text-white/70 rounded-full font-medium text-sm hover:bg-white/5 transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Bulk Progress */}
         {bulkPosting && (
-          <div className="rounded-2xl border border-[#c4a882]/20 bg-[#c4a882]/5 p-4 space-y-3">
+          <div className="rounded-2xl border border-[accent]/20 bg-[accent]/5 p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-[#c4a882]">Bulk Posting Progress</span>
+              <span className="text-sm font-medium text-[accent]">Bulk Posting Progress</span>
               <span className="text-xs text-white/40">{bulkProgress.current} / {bulkProgress.total}</span>
             </div>
             <div className="h-2 rounded-full bg-white/10 overflow-hidden">
               <div 
-                className="h-full bg-[#c4a882] transition-all duration-300" 
+                className="h-full bg-[accent] transition-all duration-300" 
                 style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
               />
             </div>
@@ -499,27 +446,93 @@ export default function InventoryPage() {
         )}
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-            <input
-              type="text"
-              placeholder="Search items..."
-              value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-[#c4a882] text-sm font-light"
-            />
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+              <input
+                type="text"
+                placeholder="Search items..."
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1); }}
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-[accent] text-sm font-light"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-white/30" />
+              <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} className="px-3 py-2.5 rounded-xl border border-white/10 bg-transparent text-white text-sm focus:outline-none focus:border-[accent]">
+                {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-1 bg-[#111111] rounded-xl p-1 border border-white/[0.04]">
+              <button onClick={() => setView('grid')} className={`p-2 rounded-lg transition-all ${view === 'grid' ? 'bg-[accent]/10 text-[accent]' : 'text-white/30 hover:text-white'}`}><Grid3X3 className="w-4 h-4" /></button>
+              <button onClick={() => setView('list')} className={`p-2 rounded-lg transition-all ${view === 'list' ? 'bg-[accent]/10 text-[accent]' : 'text-white/30 hover:text-white'}`}><List className="w-4 h-4" /></button>
+            </div>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${showFilters ? 'border-[accent]/30 text-[accent] bg-[accent]/10' : 'border-white/10 text-white/60 hover:bg-white/5'}`}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              Filters
+            </button>
           </div>
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-white/30" />
-            <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} className="px-3 py-2.5 rounded-xl border border-white/10 bg-transparent text-white text-sm focus:outline-none focus:border-[#c4a882]">
-              {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-          <div className="flex gap-1 bg-[#111111] rounded-xl p-1 border border-white/[0.04]">
-            <button onClick={() => setView('grid')} className={`p-2 rounded-lg transition-all ${view === 'grid' ? 'bg-[#c4a882]/10 text-[#c4a882]' : 'text-white/30 hover:text-white'}`}><Grid3X3 className="w-4 h-4" /></button>
-            <button onClick={() => setView('list')} className={`p-2 rounded-lg transition-all ${view === 'list' ? 'bg-[#c4a882]/10 text-[#c4a882]' : 'text-white/30 hover:text-white'}`}><List className="w-4 h-4" /></button>
-          </div>
+
+          <AnimatePresence>
+            {showFilters && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="rounded-2xl border border-white/[0.04] bg-[#111111] p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-1.5">Category</label>
+                    <select value={categoryFilter} onChange={e => { setCategoryFilter(e.target.value); setPage(1); }} className="w-full px-3 py-2 rounded-xl border border-white/10 bg-transparent text-white text-sm focus:outline-none focus:border-[accent]">
+                      <option value="">All categories</option>
+                      {['Tops', 'Bottoms', 'Dresses', 'Outerwear', 'Shoes', 'Accessories', 'Activewear', 'Swimwear', 'Formal Wear', 'Vintage'].map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-1.5">Condition</label>
+                    <select value={conditionFilter} onChange={e => { setConditionFilter(e.target.value); setPage(1); }} className="w-full px-3 py-2 rounded-xl border border-white/10 bg-transparent text-white text-sm focus:outline-none focus:border-[accent]">
+                      <option value="">All conditions</option>
+                      {['new', 'like_new', 'good', 'fair', 'poor'].map(c => <option key={c} value={c}>{c.replace('_', ' ')}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-1.5">Min Price (R)</label>
+                    <input type="number" value={minPrice} onChange={e => { setMinPrice(e.target.value); setPage(1); }} placeholder="0" className="w-full px-3 py-2 rounded-xl border border-white/10 bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-[accent] text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-1.5">Max Price (R)</label>
+                    <input type="number" value={maxPrice} onChange={e => { setMaxPrice(e.target.value); setPage(1); }} placeholder="Any" className="w-full px-3 py-2 rounded-xl border border-white/10 bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-[accent] text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-1.5">Sort By</label>
+                    <select value={sort} onChange={e => { setSort(e.target.value); setPage(1); }} className="w-full px-3 py-2 rounded-xl border border-white/10 bg-transparent text-white text-sm focus:outline-none focus:border-[accent]">
+                      <option value="created_at_desc">Newest first</option>
+                      <option value="created_at_asc">Oldest first</option>
+                      <option value="price_asc">Price: Low to High</option>
+                      <option value="price_desc">Price: High to Low</option>
+                      <option value="title_asc">Name: A to Z</option>
+                      <option value="title_desc">Name: Z to A</option>
+                    </select>
+                  </div>
+                </div>
+                {(categoryFilter || conditionFilter || minPrice || maxPrice || sort !== 'created_at_desc') && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={() => { setCategoryFilter(''); setConditionFilter(''); setMinPrice(''); setMaxPrice(''); setSort('created_at_desc'); setPage(1); }}
+                      className="inline-flex items-center gap-1 text-xs text-white/40 hover:text-white/60 transition-colors"
+                    >
+                      <X className="w-3 h-3" /> Clear all filters
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Items */}
@@ -532,7 +545,7 @@ export default function InventoryPage() {
             <Package className="w-12 h-12 text-white/20 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-white">No items found</h3>
             <p className="text-white/30 mt-1 mb-4">{search ? 'Try a different search term' : 'Add your first item to get started'}</p>
-            {!search && <Link href="/items/new" className="text-[#c4a882] hover:text-[#d4b892] font-medium inline-flex items-center gap-1">Add Item <Plus className="w-4 h-4" /></Link>}
+            {!search && <Link href="/items/new" className="text-[accent] hover:text-[accent] font-medium inline-flex items-center gap-1">Add Item <Plus className="w-4 h-4" /></Link>}
           </div>
         ) : view === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -550,7 +563,7 @@ export default function InventoryPage() {
                         <button
                           onClick={(e) => { e.stopPropagation(); toggleSelection(item.id); }}
                           className={`p-2 rounded-lg backdrop-blur-sm transition-all ${
-                            selectedItems.has(item.id) ? 'bg-[#c4a882]/20 text-[#c4a882]' : 'bg-black/40 text-white/40 hover:bg-black/60 hover:text-white/60'
+                            selectedItems.has(item.id) ? 'bg-[accent]/20 text-[accent]' : 'bg-black/40 text-white/40 hover:bg-black/60 hover:text-white/60'
                           }`}
                         >
                           {selectedItems.has(item.id) ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
@@ -566,7 +579,7 @@ export default function InventoryPage() {
                     </div>
                     <div className="p-4 flex-1 flex flex-col">
                       <h3 className="font-medium text-white truncate">{item.title}</h3>
-                      <p className="text-sm text-[#c4a882] mt-1">R{item.price}</p>
+                      <p className="text-sm text-[accent] mt-1">R{item.price}</p>
                       <p className="text-xs text-white/30 mt-1">{item.category} · {item.size} · {item.condition}</p>
                       <div className="flex gap-2 mt-3 pt-3 border-t border-white/[0.04]">
                         <Link href={`/items/${item.id}`} className="flex-1 text-center py-1.5 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] text-white/60 hover:text-white text-xs font-medium transition-all">Edit</Link>
@@ -601,20 +614,20 @@ export default function InventoryPage() {
                     <motion.tr key={item.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="hover:bg-white/[0.02] transition-colors">
                       <td className="px-4 py-3">
                         <button onClick={() => toggleSelection(item.id)} className="text-white/30 hover:text-white transition-colors">
-                          {selectedItems.has(item.id) ? <CheckSquare className="w-4 h-4 text-[#c4a882]" /> : <Square className="w-4 h-4" />}
+                          {selectedItems.has(item.id) ? <CheckSquare className="w-4 h-4 text-[accent]" /> : <Square className="w-4 h-4" />}
                         </button>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           {item.photos?.[0] ? <img src={item.photos[0]} alt="" className="w-10 h-10 rounded-lg object-cover border border-white/[0.04]" /> : <div className="w-10 h-10 rounded-lg bg-white/[0.02] flex items-center justify-center"><Package className="w-4 h-4 text-white/20" /></div>}
                           <div>
-                            <Link href={`/items/${item.id}`} className="text-white hover:text-[#c4a882] transition-colors font-medium text-sm">{item.title}</Link>
+                            <Link href={`/items/${item.id}`} className="text-white hover:text-[accent] transition-colors font-medium text-sm">{item.title}</Link>
                             <p className="text-xs text-white/30">{item.size} · {item.condition}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-white/50 text-sm">{item.category}</td>
-                      <td className="px-4 py-3 text-[#c4a882] text-sm font-medium">R{item.price}</td>
+                      <td className="px-4 py-3 text-[accent] text-sm font-medium">R{item.price}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full border ${
                           item.status === 'sold' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' :

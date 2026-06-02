@@ -41,6 +41,8 @@ export default function EditItemPage() {
   const [suggestingPrice, setSuggestingPrice] = useState(false);
   const [optimizingTitle, setOptimizingTitle] = useState(false);
   const [optimizingDescription, setOptimizingDescription] = useState(false);
+  const [photoParsing, setPhotoParsing] = useState(false);
+  const [dragPhotoIndex, setDragPhotoIndex] = useState<number | null>(null);
 
   const [form, setForm] = useState({
     title: '', description: '', price: '', category: '', size: '', brand: '', condition: 'good', color: '', platforms: [] as string[], status: 'ready',
@@ -210,7 +212,61 @@ export default function EditItemPage() {
   };
 
   const removePhoto = (idx: number) => setPhotos(photos.filter((_, i) => i !== idx));
+
+  const movePhoto = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    setPhotos(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  };
+
   const togglePlatform = (platformId: string) => setForm(f => ({ ...f, platforms: f.platforms.includes(platformId) ? f.platforms.filter(p => p !== platformId) : [...f.platforms, platformId] }));
+
+  const parsePhoto = async (photoUrl: string) => {
+    setPhotoParsing(true);
+    try {
+      const res = await fetch(photoUrl);
+      const blob = await res.blob();
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve) => {
+        reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+        reader.readAsDataURL(blob);
+      });
+
+      const aiRes = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'parse_photo',
+          data: { imageBase64: base64 },
+        }),
+      });
+      const json = await aiRes.json();
+      const r = json.result;
+      if (r?.title) {
+        setForm(f => ({
+          ...f,
+          title: r.title || f.title,
+          description: r.description || f.description,
+          brand: r.brand || f.brand,
+          color: r.color || f.color,
+          size: r.size || f.size,
+          condition: (r.condition as any) || f.condition,
+          category: r.category || f.category,
+        }));
+        toast('Photo parsed! Details auto-filled.', 'success');
+      } else {
+        toast(json.error || 'Could not parse photo', 'error');
+      }
+    } catch {
+      toast('Photo parsing failed', 'error');
+    } finally {
+      setPhotoParsing(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,6 +306,28 @@ export default function EditItemPage() {
     toast('Marked as sold', 'success');
   };
 
+  const retryPosting = async (postingId: string, platform: string) => {
+    try {
+      setAutomationStatus(`Retrying ${platform}...`);
+      const res = await fetch('/api/automation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: id, platforms: [platform] }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast(`Retry started for ${platform}`, 'success');
+        fetchPostings();
+      } else {
+        toast(data.error || `Retry failed for ${platform}`, 'error');
+      }
+    } catch (err: any) {
+      toast(`Retry failed: ${err.message}`, 'error');
+    } finally {
+      setAutomationStatus('');
+    }
+  };
+
   const handleSchedule = async () => {
     if (!scheduledDate || !scheduledTime) {
       toast('Please select date and time', 'error');
@@ -285,7 +363,7 @@ export default function EditItemPage() {
     }
   };
 
-  const inputClass = (field: string) => `w-full px-4 py-3 rounded-xl border ${errors[field] ? 'border-red-500/50 focus:ring-red-500/50' : 'border-white/10 focus:ring-[#c4a882]/50'} bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-b-2 focus:ring-0 transition-all text-sm font-light`;
+  const inputClass = (field: string) => `w-full px-4 py-3 rounded-xl border ${errors[field] ? 'border-red-500/50 focus:ring-red-500/50' : 'border-white/10 focus:ring-[accent]/50'} bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-b-2 focus:ring-0 transition-all text-sm font-light`;
   const labelClass = (field: string) => `block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-2`;
 
   return (
@@ -315,7 +393,7 @@ export default function EditItemPage() {
                   setOptimizingTitle(false);
                 }}
                 disabled={optimizingTitle}
-                className="absolute right-2 top-[28px] p-1.5 text-[#c4a882]/60 hover:text-[#c4a882] transition-colors"
+                className="absolute right-2 top-[28px] p-1.5 text-[accent]/60 hover:text-[accent] transition-colors"
                 title="Optimize title with AI"
               >
                 {optimizingTitle ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -337,7 +415,7 @@ export default function EditItemPage() {
                   setOptimizingDescription(false);
                 }}
                 disabled={optimizingDescription}
-                className="absolute right-2 top-[28px] p-1.5 text-[#c4a882]/60 hover:text-[#c4a882] transition-colors"
+                className="absolute right-2 top-[28px] p-1.5 text-[accent]/60 hover:text-[accent] transition-colors"
                 title="Optimize description with AI"
               >
                 {optimizingDescription ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -365,7 +443,7 @@ export default function EditItemPage() {
                     setSuggestingPrice(false);
                   }}
                   disabled={suggestingPrice}
-                  className="absolute right-2 top-[28px] p-1.5 text-[#c4a882]/60 hover:text-[#c4a882] transition-colors"
+                  className="absolute right-2 top-[28px] p-1.5 text-[accent]/60 hover:text-[accent] transition-colors"
                   title="Suggest smart price"
                 >
                   {suggestingPrice ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
@@ -384,20 +462,39 @@ export default function EditItemPage() {
           <div className="rounded-2xl border border-white/[0.04] bg-[#111111] p-6 space-y-4">
             <h3 className="text-sm font-medium text-white">Photos</h3>
             <div 
-              className={`flex flex-wrap gap-3 min-h-[100px] p-4 rounded-xl border-2 border-dashed transition-all ${dragOver ? 'border-[#c4a882] bg-[#c4a882]/10' : 'border-white/10'}`}
+              className={`flex flex-wrap gap-3 min-h-[100px] p-4 rounded-xl border-2 border-dashed transition-all ${dragOver ? 'border-[accent] bg-[accent]/10' : 'border-white/10'}`}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
             >
               {photos.map((url, idx) => (
-                <motion.div key={url} initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} className="relative group">
+                <motion.div
+                  key={url}
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  draggable
+                  onDragStart={() => setDragPhotoIndex(idx)}
+                  onDragOver={(e) => { e.preventDefault(); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragPhotoIndex !== null) {
+                      movePhoto(dragPhotoIndex, idx);
+                      setDragPhotoIndex(null);
+                    }
+                  }}
+                  className={`relative group cursor-move ${dragPhotoIndex === idx ? 'opacity-50' : ''}`}
+                >
                   <img src={url} alt="" className="w-24 h-24 rounded-xl object-cover bg-white/5 cursor-pointer" onClick={() => setLightbox({ open: true, index: idx })} />
+                  <span className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/50 text-white text-[9px] font-bold rounded-md">{idx + 1}</span>
                   <button type="button" onClick={() => removePhoto(idx)} className="absolute -top-2 -right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"><X className="w-3 h-3" /></button>
+                  <button type="button" onClick={() => parsePhoto(url)} disabled={photoParsing} className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-[accent] text-black text-[10px] font-bold rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg whitespace-nowrap">
+                    {photoParsing ? 'Scanning...' : 'Scan'}
+                  </button>
                 </motion.div>
               ))}
-              <label className="w-24 h-24 rounded-xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center cursor-pointer hover:border-[#c4a882]/50 transition-colors group">
-                <Upload className="w-6 h-6 text-white/20 group-hover:text-[#c4a882] transition-colors" />
-                <span className="text-xs text-white/20 mt-1 group-hover:text-[#c4a882] transition-colors">{uploading ? '...' : 'Add'}</span>
+              <label className="w-24 h-24 rounded-xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center cursor-pointer hover:border-[accent]/50 transition-colors group">
+                <Upload className="w-6 h-6 text-white/20 group-hover:text-[accent] transition-colors" />
+                <span className="text-xs text-white/20 mt-1 group-hover:text-[accent] transition-colors">{uploading ? '...' : 'Add'}</span>
                 <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoUpload} disabled={uploading} />
               </label>
             </div>
@@ -407,12 +504,28 @@ export default function EditItemPage() {
           <div className="rounded-2xl border border-white/[0.04] bg-[#111111] p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium text-white">Posting Platforms</h3>
-              <span className="text-xs text-white/30">{form.platforms.length} selected</span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allIds = SA_PLATFORMS.map(p => p.id);
+                    if (form.platforms.length === allIds.length) {
+                      setForm(f => ({ ...f, platforms: [] }));
+                    } else {
+                      setForm(f => ({ ...f, platforms: allIds }));
+                    }
+                  }}
+                  className="text-[11px] font-medium text-[accent] hover:text-[accent] transition-colors"
+                >
+                  {form.platforms.length === SA_PLATFORMS.length ? 'Clear All' : 'Select All'}
+                </button>
+                <span className="text-xs text-white/30">{form.platforms.length} selected</span>
+              </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {SA_PLATFORMS.map(platform => (
                 <motion.button key={platform.id} type="button" whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} onClick={() => togglePlatform(platform.id)}
-                  className={`p-4 rounded-xl border text-left transition-all ${form.platforms.includes(platform.id) ? 'border-[#c4a882]/30 bg-[#c4a882]/10' : 'border-white/[0.04] bg-[#0c0c0c] hover:border-white/[0.08]'}`}>
+                  className={`p-4 rounded-xl border text-left transition-all ${form.platforms.includes(platform.id) ? 'border-[accent]/30 bg-[accent]/10' : 'border-white/[0.04] bg-[#0c0c0c] hover:border-white/[0.08]'}`}>
                   <p className="font-medium text-white text-sm">{platform.name}</p>
                   <p className="text-xs text-white/30 mt-1">{platform.hasApi ? 'API' : 'Browser automation'}</p>
                 </motion.button>
@@ -423,7 +536,7 @@ export default function EditItemPage() {
                 <button
                   type="button"
                   onClick={() => setScheduleOpen(!scheduleOpen)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-[#c4a882]/30 text-[#c4a882] rounded-xl text-sm font-medium hover:bg-[#c4a882]/10 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-[accent]/30 text-[accent] rounded-xl text-sm font-medium hover:bg-[accent]/10 transition-colors"
                 >
                   <Calendar className="w-4 h-4" />
                   Schedule Posting
@@ -437,7 +550,7 @@ export default function EditItemPage() {
                         value={scheduledDate}
                         onChange={e => setScheduledDate(e.target.value)}
                         min={new Date().toISOString().split('T')[0]}
-                        className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-[#c4a882] text-sm"
+                        className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-[accent] text-sm"
                       />
                     </div>
                     <div>
@@ -446,7 +559,7 @@ export default function EditItemPage() {
                         type="time"
                         value={scheduledTime}
                         onChange={e => setScheduledTime(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-[#c4a882] text-sm"
+                        className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-[accent] text-sm"
                       />
                     </div>
                     <div className="flex gap-2">
@@ -454,7 +567,7 @@ export default function EditItemPage() {
                         type="button"
                         onClick={handleSchedule}
                         disabled={scheduling}
-                        className="flex-1 px-4 py-2 bg-[#c4a882] text-[#0c0c0c] rounded-full font-semibold text-sm hover:bg-[#d4b892] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-1 px-4 py-2 bg-[accent] text-[#0c0c0c] rounded-full font-semibold text-sm hover:bg-[accent] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {scheduling ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Schedule'}
                       </button>
@@ -482,10 +595,21 @@ export default function EditItemPage() {
             <div className="space-y-2">{postings.map((p: any) => (
               <div key={p.id} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
                 <div className="flex items-center gap-3">
-                  {p.status === 'posted' ? <CheckCircle className="w-4 h-4 text-[#c4a882]" /> : p.status === 'failed' ? <XCircle className="w-4 h-4 text-red-400" /> : <Clock className="w-4 h-4 text-amber-400" />}
+                  {p.status === 'posted' ? <CheckCircle className="w-4 h-4 text-[accent]" /> : p.status === 'failed' ? <XCircle className="w-4 h-4 text-red-400" /> : <Clock className="w-4 h-4 text-amber-400" />}
                   <div><p className="text-sm text-white font-medium">{p.platform}</p><p className="text-xs text-white/40">{new Date(p.createdAt).toLocaleString()}</p>{p.error && <p className="text-xs text-red-400 mt-0.5">{p.error}</p>}</div>
                 </div>
-                {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" className="p-1.5 text-white/30 hover:text-[#c4a882] rounded-lg hover:bg-white/5 transition-all"><ExternalLink className="w-4 h-4" /></a>}
+                <div className="flex items-center gap-2">
+                  {p.status === 'failed' && (
+                    <button
+                      type="button"
+                      onClick={() => retryPosting(p.id, p.platform)}
+                      className="px-2 py-1 text-[11px] font-medium text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-lg hover:bg-amber-400/20 transition-colors"
+                    >
+                      Retry
+                    </button>
+                  )}
+                  {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" className="p-1.5 text-white/30 hover:text-[accent] rounded-lg hover:bg-white/5 transition-all"><ExternalLink className="w-4 h-4" /></a>}
+                </div>
               </div>
             ))}</div>}
           </div>
@@ -501,7 +625,7 @@ export default function EditItemPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       {ph.old_price && <span className="text-sm text-white/40 line-through">R{ph.old_price}</span>}
-                      <span className="text-sm text-[#c4a882] font-medium">R{ph.new_price}</span>
+                      <span className="text-sm text-[accent] font-medium">R{ph.new_price}</span>
                     </div>
                   </div>
                 ))}
@@ -509,15 +633,15 @@ export default function EditItemPage() {
             </div>
           )}
 
-          <div className="rounded-2xl border border-[#c4a882]/20 bg-[#c4a882]/5 p-4 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-[#c4a882] mt-0.5 flex-shrink-0" />
-            <div><p className="text-sm font-medium text-[#c4a882]">Automation Notice</p><p className="text-sm text-white/40 mt-1 font-light">Non-API platforms require browser automation. You will need to log in manually when the browser opens.</p></div>
+          <div className="rounded-2xl border border-[accent]/20 bg-[accent]/5 p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-[accent] mt-0.5 flex-shrink-0" />
+            <div><p className="text-sm font-medium text-[accent]">Automation Notice</p><p className="text-sm text-white/40 mt-1 font-light">Posting runs in the cloud via Browserbase. Make sure you have authenticated each platform in Settings first.</p></div>
           </div>
 
-          <AnimatePresence>{automationStatus && <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="rounded-xl border border-[#c4a882]/20 bg-[#c4a882]/5 p-4 text-sm text-[#c4a882]">{automationStatus}</motion.div>}</AnimatePresence>
+          <AnimatePresence>{automationStatus && <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="rounded-xl border border-[accent]/20 bg-[accent]/5 p-4 text-sm text-[accent]">{automationStatus}</motion.div>}</AnimatePresence>
 
           <div className="flex flex-wrap gap-3">
-            <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} type="submit" disabled={loading} className="px-8 py-4 bg-[#c4a882] text-[#0c0c0c] rounded-full font-semibold text-sm tracking-wide hover:bg-[#d4b892] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">{loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Save Changes</>}</motion.button>
+            <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} type="submit" disabled={loading} className="px-8 py-4 bg-[accent] text-[#0c0c0c] rounded-full font-semibold text-sm tracking-wide hover:bg-[accent] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">{loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Save Changes</>}</motion.button>
             <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} type="button" onClick={() => setConfirmPost(true)} disabled={form.platforms.length === 0} className="inline-flex items-center gap-2 px-8 py-4 bg-white text-[#0c0c0c] rounded-full font-semibold text-sm tracking-wide hover:bg-white/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><Send className="w-4 h-4" /> Post to Platforms</motion.button>
             {form.status !== 'sold' && <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} type="button" onClick={markAsSold} className="inline-flex items-center gap-2 px-6 py-4 border border-white/10 text-white/70 rounded-full font-medium text-sm hover:bg-white/5 hover:text-white transition-all"><Tag className="w-4 h-4" /> Mark as Sold</motion.button>}
             <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} type="button" onClick={duplicateItem} disabled={loading} className="inline-flex items-center gap-2 px-6 py-4 border border-white/10 text-white/70 rounded-full font-medium text-sm hover:bg-white/5 hover:text-white transition-all disabled:opacity-50"><Copy className="w-4 h-4" /> Duplicate</motion.button>
@@ -529,7 +653,7 @@ export default function EditItemPage() {
 
       <ImageLightbox images={photos} index={lightbox.index} open={lightbox.open} onClose={() => setLightbox({ open: false, index: 0 })} onChange={idx => setLightbox(l => ({ ...l, index: idx }))} />
       <ConfirmDialog open={confirmDelete} title="Delete Item" message="Are you sure you want to delete this item? This cannot be undone." confirmText="Delete" variant="danger" onConfirm={deleteItem} onCancel={() => setConfirmDelete(false)} />
-      <ConfirmDialog open={confirmPost} title="Post to Platforms" message={`This will open browser windows for ${form.platforms.length} platform(s). Make sure you are ready to log in manually if needed.`} confirmText="Start Posting" variant="info" onConfirm={runAutomation} onCancel={() => setConfirmPost(false)} />
+      <ConfirmDialog open={confirmPost} title="Post to Platforms" message={`This will post to ${form.platforms.length} platform(s) using Browserbase cloud automation. Ensure you have authenticated each platform in Settings.`} confirmText="Start Posting" variant="info" onConfirm={runAutomation} onCancel={() => setConfirmPost(false)} />
     </PageTransition>
   );
 }

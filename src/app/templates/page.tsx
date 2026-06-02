@@ -122,7 +122,7 @@ export default function TemplatesPage() {
             <p className="text-white/30 mt-1 mb-4">Create templates to quickly populate item descriptions</p>
             <button
               onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#c4a882] text-[#0c0c0c] rounded-full font-semibold text-sm tracking-wide hover:bg-[#d4b892] transition-colors"
+              className="inline-flex items-center gap-2 px-6 py-2.5 bg-accent text-[#0c0c0c] rounded-full font-semibold text-sm tracking-wide hover:bg-accent transition-colors"
             >
               <Plus className="w-4 h-4" /> Create Template
             </button>
@@ -159,7 +159,7 @@ export default function TemplatesPage() {
                 </div>
                 <button
                   onClick={() => applyTemplate(template)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-[#c4a882]/30 text-[#c4a882] rounded-xl text-sm font-medium hover:bg-[#c4a882]/10 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-accent/30 text-accent rounded-xl text-sm font-medium hover:bg-accent/10 transition-colors"
                 >
                   <Copy className="w-4 h-4" /> Copy Template
                 </button>
@@ -193,7 +193,7 @@ export default function TemplatesPage() {
                       value={form.name}
                       onChange={e => setForm({ ...form, name: e.target.value })}
                       placeholder="e.g. Summer Collection"
-                      className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-[#c4a882] text-sm"
+                      className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-accent text-sm"
                     />
                   </div>
                   <div>
@@ -204,7 +204,7 @@ export default function TemplatesPage() {
                       value={form.descriptionTemplate}
                       onChange={e => setForm({ ...form, descriptionTemplate: e.target.value })}
                       placeholder="Use placeholders like {condition}, {size}, {brand}..."
-                      className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-[#c4a882] text-sm resize-none"
+                      className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white placeholder-white/20 focus:outline-none focus:border-accent text-sm resize-none"
                     />
                   </div>
                   <div>
@@ -212,7 +212,7 @@ export default function TemplatesPage() {
                     <select
                       value={form.category}
                       onChange={e => setForm({ ...form, category: e.target.value })}
-                      className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white focus:outline-none focus:border-[#c4a882] text-sm"
+                      className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-transparent text-white focus:outline-none focus:border-accent text-sm"
                     >
                       <option value="">Any category</option>
                       {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -228,7 +228,7 @@ export default function TemplatesPage() {
                           onClick={() => togglePlatform(platform.id)}
                           className={`p-3 rounded-xl border text-left transition-all text-xs ${
                             form.platforms.includes(platform.id)
-                              ? 'border-[#c4a882]/30 bg-[#c4a882]/10 text-white'
+                              ? 'border-accent/30 bg-accent/10 text-white'
                               : 'border-white/[0.04] bg-[#0c0c0c] text-white/60 hover:border-white/[0.08]'
                           }`}
                         >
@@ -240,7 +240,7 @@ export default function TemplatesPage() {
                   <div className="flex gap-3 pt-2">
                     <button
                       type="submit"
-                      className="flex-1 px-4 py-2.5 bg-[#c4a882] text-[#0c0c0c] rounded-full font-semibold text-sm hover:bg-[#d4b892] transition-colors"
+                      className="flex-1 px-4 py-2.5 bg-accent text-[#0c0c0c] rounded-full font-semibold text-sm hover:bg-accent transition-colors"
                     >
                       Create Template
                     </button>

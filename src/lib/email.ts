@@ -48,9 +48,9 @@ export function generatePostingSuccessEmail(itemTitle: string, platform: string,
     subject: `Successfully posted "${itemTitle}" to ${platform}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #c4a882;">Posting Successful!</h2>
+        <h2 style="color: #22C55E;">Posting Successful!</h2>
         <p>Your item "<strong>${itemTitle}</strong>" has been successfully posted to <strong>${platform}</strong>.</p>
-        ${url ? `<p>You can view your listing <a href="${url}" style="color: #c4a882;">here</a>.</p>` : ''}
+        ${url ? `<p>You can view your listing <a href="${url}" style="color: #22C55E;">here</a>.</p>` : ''}
         <p>Best regards,<br>Thrift List Team</p>
       </div>
     `,

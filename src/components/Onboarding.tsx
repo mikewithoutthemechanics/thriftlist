@@ -93,13 +93,13 @@ export default function Onboarding() {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-        className="bg-[#0a0a0a] border border-[#d4af37]/20 rounded-sm p-8 md:p-12 max-w-lg w-full relative"
+        className="bg-[#0a0a0a] border border-accent/20 rounded-sm p-8 md:p-12 max-w-lg w-full relative"
       >
         {/* Art Deco corners */}
-        <div className="absolute top-4 left-4 w-8 h-8 border-l border-t border-[#d4af37]/30" />
-        <div className="absolute top-4 right-4 w-8 h-8 border-r border-t border-[#d4af37]/30" />
-        <div className="absolute bottom-4 left-4 w-8 h-8 border-l border-b border-[#d4af37]/30" />
-        <div className="absolute bottom-4 right-4 w-8 h-8 border-r border-b border-[#d4af37]/30" />
+        <div className="absolute top-4 left-4 w-8 h-8 border-l border-t border-accent/30" />
+        <div className="absolute top-4 right-4 w-8 h-8 border-r border-t border-accent/30" />
+        <div className="absolute bottom-4 left-4 w-8 h-8 border-l border-b border-accent/30" />
+        <div className="absolute bottom-4 right-4 w-8 h-8 border-r border-b border-accent/30" />
 
         <button
           onClick={handleSkip}
@@ -115,7 +115,7 @@ export default function Onboarding() {
               <div
                 key={index}
                 className={`h-px flex-1 transition-all duration-500 ${
-                  index <= currentStep ? 'bg-[#d4af37]' : 'bg-white/[0.08]'
+                  index <= currentStep ? 'bg-accent' : 'bg-white/[0.08]'
                 }`}
               />
             ))}
@@ -148,7 +148,7 @@ export default function Onboarding() {
             {currentStep > 0 && (
               <button
                 onClick={handlePrevious}
-                className="flex-1 px-6 py-3 border border-white/15 text-white/60 rounded-sm text-sm font-light hover:border-[#d4af37]/30 hover:text-white transition-all duration-300 flex items-center justify-center gap-2"
+                className="flex-1 px-6 py-3 border border-white/15 text-white/60 rounded-sm text-sm font-light hover:border-accent/30 hover:text-white transition-all duration-300 flex items-center justify-center gap-2"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Recede
@@ -156,7 +156,7 @@ export default function Onboarding() {
             )}
             <button
               onClick={handleNext}
-              className="flex-1 px-6 py-3 bg-[#d4af37] text-[#0a0a0a] rounded-sm text-sm font-medium tracking-wide hover:bg-[#e6c388] transition-colors duration-300 flex items-center justify-center gap-2"
+              className="flex-1 px-6 py-3 bg-accent text-[#0a0a0a] rounded-sm text-sm font-medium tracking-wide hover:bg-accent transition-colors duration-300 flex items-center justify-center gap-2"
             >
               {currentStep === onboardingSteps.length - 1 ? (
                 <>

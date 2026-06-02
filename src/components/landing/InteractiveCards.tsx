@@ -33,12 +33,12 @@ function Card({ card, index }: { card: typeof cards[0]; index: number }) {
       animate={isInView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.7, delay: index * 0.12, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="h-full p-8 rounded-2xl bg-[#111111] border border-white/[0.04] hover:bg-[#151515] hover:border-white/[0.08] transition-all duration-500">
-        <div className="w-10 h-10 rounded-full bg-[#c4a882]/10 border border-[#c4a882]/20 flex items-center justify-center mb-6">
-          <card.icon className="w-4 h-4 text-[#c4a882]" />
+      <div className="h-full p-8 rounded-[22px] bg-[#111111]/80 border border-white/[0.04] hover:bg-[#151515]/90 hover:border-white/[0.08] hover:shadow-xl hover:shadow-black/30 hover:-translate-y-1 transition-all duration-500 backdrop-blur-sm">
+        <div className="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center mb-6 group-hover:shadow-md group-hover:shadow-accent/10 transition-all">
+          <card.icon className="w-4 h-4 text-accent" />
         </div>
-        <h3 className="text-base font-medium text-white mb-3 tracking-tight">{card.title}</h3>
-        <p className="text-sm text-white/30 leading-relaxed font-light">{card.description}</p>
+        <h3 className="text-base font-bold text-white mb-3 tracking-tight">{card.title}</h3>
+        <p className="text-sm text-white/40 leading-relaxed">{card.description}</p>
       </div>
     </motion.div>
   );
@@ -58,12 +58,12 @@ export default function InteractiveCards() {
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
           className="mb-16"
         >
-          <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#c4a882] mb-4 block">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-accent mb-4 block">
             Experience
           </span>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-light text-white tracking-tight leading-tight max-w-lg">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight leading-tight max-w-lg">
             Thoughtfully designed{" "}
-            <span className="text-[#c4a882]">for you.</span>
+            <span className="text-accent">for you.</span>
           </h2>
         </motion.div>
 

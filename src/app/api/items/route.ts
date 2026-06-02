@@ -37,6 +37,11 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '12'), 100);
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || '';
+    const category = searchParams.get('category') || '';
+    const condition = searchParams.get('condition') || '';
+    const minPrice = searchParams.get('minPrice') || '';
+    const maxPrice = searchParams.get('maxPrice') || '';
+    const sort = searchParams.get('sort') || 'created_at_desc';
     const start = (page - 1) * limit;
 
     let query = supabase.from('items').select('*', { count: 'exact' }).eq('user_id', user.id);
@@ -44,8 +49,23 @@ export async function GET(request: NextRequest) {
       query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
     }
     if (status) query = query.eq('status', status);
+    if (category) query = query.eq('category', category);
+    if (condition) query = query.eq('condition', condition);
+    if (minPrice) query = query.gte('price', parseFloat(minPrice));
+    if (maxPrice) query = query.lte('price', parseFloat(maxPrice));
 
-    const { data, count, error } = await query.order('created_at', { ascending: false }).range(start, start + limit - 1);
+    // Sort
+    const sortMap: Record<string, { column: string; ascending: boolean }> = {
+      created_at_desc: { column: 'created_at', ascending: false },
+      created_at_asc: { column: 'created_at', ascending: true },
+      price_desc: { column: 'price', ascending: false },
+      price_asc: { column: 'price', ascending: true },
+      title_asc: { column: 'title', ascending: true },
+      title_desc: { column: 'title', ascending: false },
+    };
+    const sortConfig = sortMap[sort] || sortMap.created_at_desc;
+
+    const { data, count, error } = await query.order(sortConfig.column, { ascending: sortConfig.ascending }).range(start, start + limit - 1);
     if (error) throw error;
 
     return NextResponse.json({ items: data || [], total: count || 0, page, limit });
@@ -114,6 +134,14 @@ export async function POST(request: NextRequest) {
     }).select().single();
 
     if (error) throw error;
+
+    // Log creation
+    await supabase.from('item_activity_log').insert({
+      item_id: data.id,
+      user_id: user.id,
+      action: 'created',
+    });
+
     return NextResponse.json({ id: data.id, success: true });
   } catch (error: any) {
     console.error('POST /api/items error:', error);

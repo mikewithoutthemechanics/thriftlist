@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, XCircle, AlertCircle, Info, X } from 'lucide-react';
 
@@ -35,6 +35,15 @@ export default function Toaster({ children }: { children: React.ReactNode }) {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
+  useEffect(() => {
+    const handleWarning = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      toast(detail?.message || 'You will be logged out soon due to inactivity.', 'warning');
+    };
+    window.addEventListener('inactivity-warning', handleWarning);
+    return () => window.removeEventListener('inactivity-warning', handleWarning);
+  }, [toast]);
+
   const iconMap = {
     success: <CheckCircle className="w-5 h-5 text-emerald-400" />,
     error: <XCircle className="w-5 h-5 text-red-400" />,
@@ -65,7 +74,7 @@ export default function Toaster({ children }: { children: React.ReactNode }) {
               initial={{ opacity: 0, x: 50, scale: 0.9 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 50, scale: 0.9 }}
-              className={`glass border ${borderMap[t.type]} rounded-xl p-4 pr-10 flex items-center gap-3 min-w-[280px] max-w-[400px] shadow-lg`}
+              className={`glass border ${borderMap[t.type]} rounded-2xl p-4 pr-10 flex items-center gap-3 min-w-[280px] max-w-[400px] shadow-2xl shadow-black/40 backdrop-blur-xl`}
             >
               {iconMap[t.type]}
               <p className="text-sm text-white">{t.message}</p>

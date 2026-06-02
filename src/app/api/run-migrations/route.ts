@@ -98,6 +98,48 @@ export async function POST(request: NextRequest) {
             ON public.templates FOR DELETE
             USING (auth.uid() = user_id);
         `
+      },
+      {
+        name: 'notifications',
+        sql: `
+          CREATE TABLE IF NOT EXISTS public.notifications (
+            id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+            user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+            type TEXT NOT NULL DEFAULT 'info',
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            metadata JSONB DEFAULT '{}',
+            read BOOLEAN NOT NULL DEFAULT false,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
+          CREATE INDEX IF NOT EXISTS idx_notifications_read ON public.notifications(read);
+          CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON public.notifications(created_at);
+
+          ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+          DROP POLICY IF EXISTS "Users can view their own notifications" ON public.notifications;
+          DROP POLICY IF EXISTS "Users can insert their own notifications" ON public.notifications;
+          DROP POLICY IF EXISTS "Users can update their own notifications" ON public.notifications;
+          DROP POLICY IF EXISTS "Users can delete their own notifications" ON public.notifications;
+
+          CREATE POLICY "Users can view their own notifications"
+            ON public.notifications FOR SELECT
+            USING (auth.uid() = user_id);
+
+          CREATE POLICY "Users can insert their own notifications"
+            ON public.notifications FOR INSERT
+            WITH CHECK (auth.uid() = user_id);
+
+          CREATE POLICY "Users can update their own notifications"
+            ON public.notifications FOR UPDATE
+            USING (auth.uid() = user_id);
+
+          CREATE POLICY "Users can delete their own notifications"
+            ON public.notifications FOR DELETE
+            USING (auth.uid() = user_id);
+        `
       }
     ];
 
@@ -105,7 +147,7 @@ export async function POST(request: NextRequest) {
 
     for (const migration of migrations) {
       console.log(`Running migration: ${migration.name}`);
-      const { error } = await supabase.from(migration.name === 'scheduled_postings' ? 'scheduled_postings' : 'templates').select('*').limit(1);
+      const { error } = await supabase.from(migration.name).select('*').limit(1);
       
       // If table doesn't exist, create it using direct SQL
       if (error && error.code === '42P01') {
@@ -115,7 +157,7 @@ export async function POST(request: NextRequest) {
           console.error(`Error creating ${migration.name}:`, createError);
           // Try alternative approach: execute SQL directly
           const { error: directError } = await supabase
-            .from(migration.name === 'scheduled_postings' ? 'scheduled_postings' : 'templates')
+            .from(migration.name)
             .select('*')
             .limit(1);
           

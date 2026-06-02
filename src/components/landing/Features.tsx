@@ -49,17 +49,17 @@ function FeatureCard({ feature, index }: { feature: typeof features[0]; index: n
       transition={{ duration: 0.8, delay: index * 0.12, ease: [0.22, 1, 0.36, 1] }}
       className="group relative"
     >
-      <div className="absolute top-0 left-0 w-8 h-8 border-l border-t border-[#d4af37]/20 group-hover:border-[#d4af37]/60 transition-colors duration-500" />
-      <div className="absolute bottom-0 right-0 w-8 h-8 border-r border-b border-[#d4af37]/20 group-hover:border-[#d4af37]/60 transition-colors duration-500" />
+      <div className="absolute top-0 left-0 w-8 h-8 border-l border-t border-[accent]/20 group-hover:border-[accent]/60 transition-colors duration-500" />
+      <div className="absolute bottom-0 right-0 w-8 h-8 border-r border-b border-[accent]/20 group-hover:border-[accent]/60 transition-colors duration-500" />
       
-      <div className="h-full p-10 ml-4 mr-4 mt-4 mb-4 rounded-xl bg-[#0f0e0c]/80 border border-[#2d251e] group-hover:border-[#d4af37]/30 transition-all duration-500 backdrop-blur-sm">
-        <div className="w-12 h-12 rounded-lg bg-[#d4af37]/5 border border-[#d4af37]/10 flex items-center justify-center mb-6 group-hover:bg-[#d4af37]/10 group-hover:border-[#d4af37]/30 transition-all duration-500">
-          <feature.icon className="w-5 h-5 text-[#d4af37]/60 group-hover:text-[#d4af37] transition-colors duration-500" />
+      <div className="h-full p-10 ml-4 mr-4 mt-4 mb-4 rounded-[22px] bg-[#0f0e0c]/80 border border-[#2d251e] group-hover:border-[accent]/30 group-hover:shadow-xl group-hover:shadow-black/30 group-hover:-translate-y-1 transition-all duration-500 backdrop-blur-sm">
+        <div className="w-12 h-12 rounded-2xl bg-[accent]/5 border border-[accent]/10 flex items-center justify-center mb-6 group-hover:bg-[accent]/10 group-hover:border-[accent]/30 group-hover:shadow-md group-hover:shadow-[accent]/10 transition-all duration-500">
+          <feature.icon className="w-5 h-5 text-[accent]/60 group-hover:text-[accent] transition-colors duration-500" />
         </div>
-        <h3 className="text-lg font-light text-white mb-3 tracking-wide font-serif">
+        <h3 className="text-lg font-bold text-white mb-3 tracking-wide font-serif">
           {feature.title}
         </h3>
-        <p className="text-sm text-white/50 leading-relaxed font-light">
+        <p className="text-sm text-white/50 leading-relaxed">
           {feature.description}
         </p>
       </div>
@@ -74,8 +74,8 @@ export default function Features() {
   return (
     <section className="relative py-32 sm:py-44 px-6 bg-[#0a0a0a] art-deco-pattern">
       {/* Horizontal decorative lines */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#d4af37]/10 to-transparent" />
-      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#d4af37]/10 to-transparent" />
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[accent]/10 to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[accent]/10 to-transparent" />
       
       <div className="max-w-5xl mx-auto">
         <motion.div
@@ -89,7 +89,7 @@ export default function Features() {
             initial={{ opacity: 0 }}
             animate={isHeaderInView ? { opacity: 1 } : {}}
             transition={{ delay: 0.3 }}
-            className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.4em] text-[#d4af37] mb-6 font-mono"
+            className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.4em] text-[accent] mb-6 font-mono"
           >
             <Sparkles className="w-3 h-3" />
             Capabilities

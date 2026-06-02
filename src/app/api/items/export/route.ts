@@ -41,8 +41,8 @@ export async function GET(request: NextRequest) {
         item.condition,
         `"${(item.color || '').replace(/"/g, '""')}"`,
         item.status,
-        (item.platforms || []).join('|'),
-        (item.photos || []).join('|'),
+        (item.platforms || []).join(','),
+        (item.photos || []).join(','),
         item.created_at,
       ].join(','))
     ];

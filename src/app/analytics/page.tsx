@@ -4,9 +4,6 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { BarChart3, TrendingUp, CheckCircle, XCircle, Clock, Package, DollarSign } from 'lucide-react';
 import PageTransition from '@/components/PageTransition';
-import { createClientBrowser } from '@/lib/supabase';
-
-export const dynamic = 'force-dynamic';
 
 interface AnalyticsData {
   totalItems: number;
@@ -25,7 +22,6 @@ interface AnalyticsData {
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createClientBrowser();
 
   useEffect(() => {
     fetchAnalytics();
@@ -34,100 +30,30 @@ export default function AnalyticsPage() {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const res = await fetch('/api/analytics');
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
 
-      // Get total items
-      const { count: totalItems } = await supabase
-        .from('items')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
-
-      // Get postings data for last 7 days
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      const { data: postings } = await supabase
-        .from('postings')
-        .select('id, platform, status, created_at')
-        .eq('user_id', user.id)
-        .gte('created_at', sevenDaysAgo.toISOString())
-        .order('created_at', { ascending: false });
-
-      const successfulPostings = postings?.filter(p => p.status === 'posted').length || 0;
-      const failedPostings = postings?.filter(p => p.status === 'failed').length || 0;
-      const pendingPostings = postings?.filter(p => p.status === 'pending').length || 0;
-
-      // Calculate platform stats
-      const platformMap = new Map<string, { count: number; success: number; failed: number }>();
-      postings?.forEach(p => {
-        const current = platformMap.get(p.platform) || { count: 0, success: 0, failed: 0 };
-        current.count++;
-        if (p.status === 'posted') current.success++;
-        if (p.status === 'failed') current.failed++;
-        platformMap.set(p.platform, current);
-      });
-
-      const platformStats = Array.from(platformMap.entries()).map(([platform, stats]) => ({
+      // Transform platformStats from object to array for UI compatibility
+      const platformStats = Object.entries(json.platformStats || {}).map(([platform, stats]: [string, any]) => ({
         platform,
-        count: stats.count,
+        count: stats.total,
         success: stats.success,
         failed: stats.failed,
       }));
 
-      // Get sold items and calculate revenue
-      const { data: soldItems } = await supabase
-        .from('items')
-        .select('price, created_at')
-        .eq('user_id', user.id)
-        .eq('status', 'sold');
-
-      const totalRevenue = (soldItems || []).reduce((sum, item) => sum + (item.price || 0), 0);
-      const soldCount = soldItems?.length || 0;
-
-      // Calculate average time to sell (in days)
-      const timeToSellDiffs = (soldItems || []).map(item => {
-        const created = new Date(item.created_at).getTime();
-        const now = Date.now();
-        const daysDiff = Math.floor((now - created) / (1000 * 60 * 60 * 24));
-        return daysDiff;
-      });
-      const avgTimeToSell = timeToSellDiffs.length > 0 
-        ? Math.round(timeToSellDiffs.reduce((sum, diff) => sum + diff, 0) / timeToSellDiffs.length)
-        : 0;
-
-      // Calculate daily trends for last 7 days
-      const dailyTrends = [];
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
-        
-        const dayPostings = postings?.filter(p => p.created_at.startsWith(dateStr)) || [];
-        const total = dayPostings.length;
-        const success = dayPostings.filter(p => p.status === 'posted').length;
-        const failed = dayPostings.filter(p => p.status === 'failed').length;
-        
-        dailyTrends.push({
-          date: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
-          total,
-          success,
-          failed,
-        });
-      }
-
       setData({
-        totalItems: totalItems || 0,
-        totalPostings: postings?.length || 0,
-        successfulPostings,
-        failedPostings,
-        pendingPostings,
+        totalItems: json.totalItems || 0,
+        totalPostings: json.totalPostings || 0,
+        successfulPostings: json.successfulPostings || 0,
+        failedPostings: json.failedPostings || 0,
+        pendingPostings: json.pendingPostings || 0,
         platformStats,
-        recentPostings: (postings || []).slice(0, 10),
-        dailyTrends,
-        totalRevenue,
-        soldItems: soldCount,
-        avgTimeToSell,
+        recentPostings: json.recentPostings || [],
+        dailyTrends: json.dailyTrends || [],
+        totalRevenue: json.totalRevenue || 0,
+        soldItems: json.soldItems || 0,
+        avgTimeToSell: json.avgTimeToSell || 0,
       });
     } catch (err) {
       console.error('Failed to fetch analytics:', err);
@@ -141,15 +67,15 @@ export default function AnalyticsPage() {
     : 0;
 
   const cards = [
-    { label: 'Total Items', value: data?.totalItems || 0, icon: Package, color: 'text-[#c4a882]' },
-    { label: 'Total Postings', value: data?.totalPostings || 0, icon: BarChart3, color: 'text-[#c4a882]' },
+    { label: 'Total Items', value: data?.totalItems || 0, icon: Package, color: 'text-accent' },
+    { label: 'Total Postings', value: data?.totalPostings || 0, icon: BarChart3, color: 'text-accent' },
     { label: 'Successful', value: data?.successfulPostings || 0, icon: CheckCircle, color: 'text-emerald-400' },
     { label: 'Failed', value: data?.failedPostings || 0, icon: XCircle, color: 'text-red-400' },
     { label: 'Pending', value: data?.pendingPostings || 0, icon: Clock, color: 'text-amber-400' },
     { label: 'Total Revenue', value: `R${data?.totalRevenue?.toFixed(2) || '0.00'}`, icon: DollarSign, color: 'text-green-400' },
-    { label: 'Items Sold', value: data?.soldItems || 0, icon: TrendingUp, color: 'text-[#c4a882]' },
-    { label: 'Avg Time to Sell', value: `${data?.avgTimeToSell || 0} days`, icon: Clock, color: 'text-[#c4a882]' },
-    { label: 'Success Rate', value: `${successRate}%`, icon: TrendingUp, color: 'text-[#c4a882]' },
+    { label: 'Items Sold', value: data?.soldItems || 0, icon: TrendingUp, color: 'text-accent' },
+    { label: 'Avg Time to Sell', value: `${data?.avgTimeToSell || 0} days`, icon: Clock, color: 'text-accent' },
+    { label: 'Success Rate', value: `${successRate}%`, icon: TrendingUp, color: 'text-accent' },
   ];
 
   if (loading) {

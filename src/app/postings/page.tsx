@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Send, CheckCircle, XCircle, Clock, ExternalLink, Package, ArrowRight } from 'lucide-react';
+import { Send, CheckCircle, XCircle, Clock, ExternalLink, Package, ArrowRight, RefreshCw } from 'lucide-react';
 import AnimatedCard from '@/components/AnimatedCard';
 import PageTransition from '@/components/PageTransition';
 import { createClientBrowser } from '@/lib/supabase';
@@ -47,6 +47,33 @@ export default function PostingsPage() {
     if (status === 'posted') return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20';
     if (status === 'failed') return 'bg-red-500/10 text-red-300 border-red-500/20';
     return 'bg-amber-500/10 text-amber-300 border-amber-500/20';
+  };
+
+  const retryPosting = async (itemId: string, platform: string) => {
+    try {
+      const res = await fetch('/api/automation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId, platforms: [platform] }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Retry started for ${platform}`);
+        // Refresh postings
+        const supabase = createClientBrowser();
+        const { data: newData, error } = await supabase.from('postings').select('*, items(title)').order('created_at', { ascending: false });
+        if (!error) {
+          setPostings((newData || []).map((row: any) => ({
+            id: row.id, itemId: row.item_id, itemTitle: row.items?.title,
+            platform: row.platform, status: row.status, url: row.url, error: row.error, createdAt: row.created_at,
+          })));
+        }
+      } else {
+        alert(data.error || `Retry failed for ${platform}`);
+      }
+    } catch {
+      alert('Retry failed');
+    }
   };
 
   return (
@@ -93,9 +120,19 @@ export default function PostingsPage() {
                     <td className="px-6 py-4 text-white/60">{posting.platform}</td>
                     <td className="px-6 py-4 text-white/40">{new Date(posting.createdAt).toLocaleString()}</td>
                     <td className="px-6 py-4 text-right">
-                      {posting.url ? (
-                        <a href={posting.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-emerald-400 transition-all text-xs"><ExternalLink className="w-3.5 h-3.5" /> View</a>
-                      ) : <span className="text-white/20 text-xs">No link</span>}
+                      <div className="flex items-center justify-end gap-2">
+                        {posting.status === 'failed' && (
+                          <button
+                            onClick={() => retryPosting(posting.itemId, posting.platform)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 transition-all text-xs"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" /> Retry
+                          </button>
+                        )}
+                        {posting.url ? (
+                          <a href={posting.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-emerald-400 transition-all text-xs"><ExternalLink className="w-3.5 h-3.5" /> View</a>
+                        ) : posting.status !== 'failed' && <span className="text-white/20 text-xs">No link</span>}
+                      </div>
                     </td>
                   </motion.tr>
                 ))}

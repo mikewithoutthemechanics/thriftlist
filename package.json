@@ -18,7 +18,7 @@
     "@supabase/supabase-js": "^2.106.0",
     "@types/crypto-js": "^4.2.2",
     "better-sqlite3": "^12.9.0",
-    "cloakbrowser": "^0.3.30",
+    "cloakbrowser": "^0.3.31",
     "clsx": "^2.1.1",
     "crypto-js": "^4.2.0",
     "framer-motion": "^12.38.0",

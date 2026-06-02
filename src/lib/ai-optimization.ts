@@ -162,6 +162,72 @@ export async function generateTags(
 }
 
 /**
+ * Rewrite description for a specific platform's tone
+ */
+export async function rewriteDescriptionForPlatform(
+  description: string,
+  title: string,
+  platform: string
+): Promise<string> {
+  try {
+    const response = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'platform_description',
+        data: { description, title, platform },
+      }),
+    });
+    const data = await response.json();
+    return data.result || description;
+  } catch (error) {
+    console.error('Failed to rewrite description:', error);
+    return description;
+  }
+}
+
+/**
+ * Optimize entire listing in one call (title + description + price)
+ */
+export async function optimizeFullListing(
+  item: Partial<ClothingItem>
+): Promise<{ title: string; description: string; price: number } | null> {
+  try {
+    const response = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'optimize_listing',
+        data: { item },
+      }),
+    });
+    const data = await response.json();
+    const result = data.result;
+    if (!result) return null;
+
+    // Parse JSON if result is a string
+    let parsed = result;
+    if (typeof result === 'string') {
+      try {
+        const cleaned = result.replace(/```json\n?|\n?```/g, '').trim();
+        parsed = JSON.parse(cleaned);
+      } catch {
+        return null;
+      }
+    }
+
+    return {
+      title: parsed.optimizedTitle || item.title || '',
+      description: parsed.optimizedDescription || item.description || '',
+      price: parsed.suggestedPrice || item.price || 0,
+    };
+  } catch (error) {
+    console.error('Failed to optimize full listing:', error);
+    return null;
+  }
+}
+
+/**
  * Batch optimize multiple items
  */
 export async function batchOptimizeListings(
