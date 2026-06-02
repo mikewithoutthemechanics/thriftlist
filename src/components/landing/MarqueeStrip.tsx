@@ -30,14 +30,14 @@ export default function MarqueeStrip() {
   }, []);
 
   const content = items.map((text, i) => (
-    <span key={i} className="flex items-center gap-6 text-lg sm:text-xl font-light text-white/8 uppercase tracking-[0.2em] whitespace-nowrap px-6">
+    <span key={i} className="flex items-center gap-6 text-lg sm:text-xl font-bold text-foreground/10 uppercase tracking-[0.2em] whitespace-nowrap px-6">
       {text}
-      <span className="w-[3px] h-[3px] rounded-full bg-accent/30 flex-shrink-0" />
+      <span className="w-[3px] h-[3px] rounded-full bg-primary/30 flex-shrink-0" />
     </span>
   ));
 
   return (
-    <section className="relative py-6 overflow-hidden border-y border-white/[0.03] bg-[#0c0c0c]">
+    <section className="relative py-6 overflow-hidden border-y border-border bg-background">
       <div ref={trackRef} className="flex w-max">
         {content}
         {content}

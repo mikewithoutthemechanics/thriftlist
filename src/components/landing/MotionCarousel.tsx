@@ -23,13 +23,13 @@ export default function MotionCarousel() {
   }, []);
 
   return (
-    <section className="relative py-28 sm:py-36 px-6 bg-[#111111]">
+    <section className="relative py-28 sm:py-36 px-6 bg-background">
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-16">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-accent mb-4 block">
+          <span className="text-[11px] font-bold uppercase tracking-[0.3em] text-primary mb-4 block">
             Supported Platforms
           </span>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight leading-tight">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground tracking-tight leading-tight">
             Post to <span className="text-accent">everywhere.</span>
           </h2>
         </div>
@@ -42,15 +42,15 @@ export default function MotionCarousel() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: i * 0.08, ease: [0.22, 1, 0.36, 1] }}
               whileHover={{ y: -4 }}
-              className={`relative p-6 rounded-[22px] border transition-all duration-500 backdrop-blur-sm ${
+              className={`relative p-6 rounded-[22px] border transition-all duration-500 cursor-pointer ${
                 i === activeIndex
-                  ? 'bg-[#1a1a1a]/90 border-accent/30 shadow-lg shadow-accent/5'
-                  : 'bg-[#0c0c0c]/80 border-white/[0.04] hover:border-white/[0.08] hover:shadow-lg hover:shadow-black/20'
+                  ? 'bg-white border-accent/30 shadow-lg'
+                  : 'bg-muted/30 border-border hover:border-accent/10 hover:shadow-md'
               }`}
             >
-              <ExternalLink className={`w-5 h-5 mb-4 ${i === activeIndex ? 'text-accent' : 'text-white/20'}`} />
-              <h3 className="text-sm font-bold text-white mb-1 tracking-tight">{platform.name}</h3>
-              <p className="text-xs text-white/40">{platform.desc}</p>
+              <ExternalLink className={`w-5 h-5 mb-4 ${i === activeIndex ? 'text-accent' : 'text-foreground/20'}`} />
+              <h3 className="text-sm font-bold text-foreground mb-1 tracking-tight">{platform.name}</h3>
+              <p className="text-xs text-foreground/40">{platform.desc}</p>
               {i === activeIndex && (
                 <motion.div
                   layoutId="activeIndicator"
@@ -68,8 +68,8 @@ export default function MotionCarousel() {
             <button
               key={i}
               onClick={() => setActiveIndex(i)}
-              className={`w-[2px] h-8 rounded-full transition-all duration-300 ${
-                i === activeIndex ? 'bg-accent' : 'bg-white/10'
+              className={`w-[2px] h-8 rounded-full transition-all duration-300 cursor-pointer ${
+                i === activeIndex ? 'bg-accent' : 'bg-foreground/10'
               }`}
             />
           ))}

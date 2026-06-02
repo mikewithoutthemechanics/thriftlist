@@ -41,7 +41,7 @@ export default function HowItWorks() {
   const isInView = useInView(ref, { once: true, margin: '-100px' });
 
   return (
-    <section id="features" className="relative py-32 sm:py-44 px-6 bg-[#0c0c0c]">
+    <section id="features" className="relative py-32 sm:py-44 px-6 bg-background">
       <div className="max-w-5xl mx-auto" ref={ref}>
         {/* Header */}
         <motion.div
@@ -50,14 +50,14 @@ export default function HowItWorks() {
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
           className="text-center mb-20"
         >
-          <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[accent] mb-4 block">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-primary mb-4 block">
             How It Works
           </span>
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-light text-white tracking-tight leading-[1.1] font-serif">
+          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground tracking-tight leading-[1.1]">
             Four steps to{" "}
-            <span className="gradient-text">market dominance.</span>
+            <span className="text-accent">market dominance.</span>
           </h2>
-          <p className="text-base text-white/50 max-w-md mx-auto mt-6 leading-relaxed">
+          <p className="text-base text-foreground/60 max-w-md mx-auto mt-6 leading-relaxed">
             From wardrobe to worldwide buyers in under a minute.
           </p>
         </motion.div>
@@ -74,23 +74,23 @@ export default function HowItWorks() {
                 initial={{ opacity: 0, y: 30 }}
                 animate={stepInView ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.7, delay: i * 0.12, ease: [0.22, 1, 0.36, 1] }}
-                className="group relative"
+                className="group relative cursor-pointer"
               >
-                <div className="h-full p-8 rounded-[22px] bg-[#111111]/80 border border-white/[0.04] hover:border-[accent]/20 hover:bg-[#151515]/90 hover:shadow-xl hover:shadow-black/40 hover:-translate-y-1 transition-all duration-500 backdrop-blur-sm">
+                <div className="h-full p-8 rounded-[22px] bg-white border border-border hover:border-accent/40 hover:shadow-lg transition-all duration-300">
                   {/* Number + Icon */}
                   <div className="flex items-center justify-between mb-6">
-                    <span className="text-4xl font-black text-white/[0.04] font-serif group-hover:text-[accent]/10 transition-colors">
+                    <span className="text-4xl font-black text-foreground/5 group-hover:text-accent/10 transition-colors">
                       {step.number}
                     </span>
-                    <div className="w-12 h-12 rounded-2xl bg-[accent]/10 border border-[accent]/20 flex items-center justify-center group-hover:bg-[accent]/15 group-hover:shadow-md group-hover:shadow-[accent]/10 transition-all">
-                      <step.icon className="w-5 h-5 text-[accent]" />
+                    <div className="w-12 h-12 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center group-hover:bg-accent/15 group-hover:shadow-md transition-all">
+                      <step.icon className="w-5 h-5 text-accent" />
                     </div>
                   </div>
 
-                  <h3 className="text-lg font-bold text-white mb-3 tracking-tight">
+                  <h3 className="text-lg font-bold text-foreground mb-3 tracking-tight">
                     {step.title}
                   </h3>
-                  <p className="text-sm text-white/50 leading-relaxed">
+                  <p className="text-sm text-foreground/60 leading-relaxed">
                     {step.description}
                   </p>
                 </div>
@@ -108,7 +108,7 @@ export default function HowItWorks() {
         >
           <Link
             href="/items/new"
-            className="metallic-btn group px-10 py-4 text-sm tracking-[0.08em] rounded-2xl inline-flex items-center gap-3 shadow-lg shadow-[accent]/10 hover:shadow-xl hover:shadow-[accent]/20 hover:-translate-y-0.5 transition-all"
+            className="group px-10 py-4 text-sm font-bold tracking-[0.08em] uppercase rounded-2xl inline-flex items-center gap-3 bg-accent text-white shadow-lg shadow-accent/20 hover:shadow-xl hover:shadow-accent/30 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
           >
             Try It Now — Free
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />

@@ -49,18 +49,18 @@ function FabricButton({
   variant?: 'gold' | 'outline' | 'ghost';
 }) {
   const base =
-    'group relative inline-flex items-center gap-3 px-8 py-4 text-xs font-semibold tracking-[0.15em] uppercase overflow-hidden transition-all duration-500';
+    'group relative inline-flex items-center gap-3 px-8 py-4 text-xs font-bold tracking-[0.15em] uppercase overflow-hidden transition-all duration-500 rounded-xl cursor-pointer';
 
   const styles = {
     gold:
       base +
-      ' bg-primary text-white hover:bg-primary/90 hover:shadow-lg',
+      ' bg-accent text-white hover:bg-accent/90 hover:shadow-lg',
     outline:
       base +
-      ' border border-border text-foreground hover:bg-muted',
+      ' border border-primary/30 text-primary hover:bg-primary/5',
     ghost:
       base +
-      ' border border-accent/30 text-accent hover:border-accent/60 hover:bg-accent/5',
+      ' border border-primary/10 text-primary hover:border-primary/30 hover:bg-primary/5',
   };
 
   return (
@@ -92,11 +92,11 @@ export default function Hero() {
   return (
     <section className="relative min-h-screen bg-background overflow-hidden flex items-center justify-center">
       {/* 3D CLOTHES PILE SCENE */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 opacity-40 mix-blend-multiply">
         {!prefersReducedMotion && <FallingClothes3D />}
         {prefersReducedMotion && (
           <div
-            className="absolute inset-0 bg-cover bg-center"
+            className="absolute inset-0 bg-cover bg-center grayscale opacity-20"
             style={{
               backgroundImage:
                 'url(https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=2070&auto=format&fit=crop)',
@@ -109,18 +109,17 @@ export default function Hero() {
       <div
         className="absolute inset-0 z-10 pointer-events-none"
         style={{
-          background:
-            'radial-gradient(ellipse 70% 60% at 50% 40%, transparent 30%, rgba(5,5,5,0.8) 70%, #050505 95%)',
-          animation: 'vignette-pulse 8s ease-in-out infinite',
+          background: `
+            radial-gradient(circle at 20% 30%, rgba(124,58,237,0.05) 0%, transparent 50%),
+            radial-gradient(circle at 80% 70%, rgba(22,163,74,0.05) 0%, transparent 50%)
+          `,
         }}
       />
-      <div className="absolute inset-x-0 top-0 h-[40%] bg-gradient-to-b from-[#050505] to-transparent z-10 pointer-events-none" />
-      <div className="absolute inset-x-0 bottom-0 h-[30%] bg-gradient-to-t from-[#050505] to-transparent z-10 pointer-events-none" />
       <div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] z-10 pointer-events-none"
         style={{
           background:
-            'radial-gradient(ellipse at center, rgba(196,168,130,0.08) 0%, transparent 60%)',
+            'radial-gradient(ellipse at center, rgba(124,58,237,0.03) 0%, transparent 60%)',
           filter: 'blur(80px)',
         }}
       />
@@ -134,43 +133,32 @@ export default function Hero() {
           transition={{ duration: 0.8, delay: 0.3 }}
           className="mb-8"
         >
-          <span className="inline-flex items-center gap-2 px-4 py-2 border border-[accent]/30 rounded-full bg-black/30 backdrop-blur-sm">
-            <Sparkles className="w-3 h-3 text-[accent]" />
-            <span className="text-[10px] uppercase tracking-[0.3em] text-[accent] font-mono">
-              South Africa&apos;s Smartest Resale Platform
+          <span className="inline-flex items-center gap-2 px-4 py-2 border border-primary/20 rounded-full bg-primary/5">
+            <Sparkles className="w-3.5 h-3.5 text-primary" />
+            <span className="text-[10px] uppercase tracking-[0.4em] text-primary font-bold">
+              AI-Driven Resale Hub
             </span>
           </span>
         </motion.div>
 
-        {/* KINETIC TYPOGRAPHY */}
-        <div className="mb-4" style={{ perspective: '1000px' }}>
-          <h1 className="text-[18vw] sm:text-[16vw] md:text-[14vw] leading-[0.85] font-black text-white tracking-tighter mix-blend-overlay opacity-90 select-none">
-            <KineticWord text="THRIFT" />
-          </h1>
-        </div>
-
-        <div className="mb-6 -mt-[2vw]" style={{ perspective: '1000px' }}>
-          <h1
-            className="text-[14vw] sm:text-[12vw] md:text-[10vw] leading-[0.9] font-black tracking-tighter select-none"
-            style={{
-              background:
-                'linear-gradient(135deg, accent 0%, #e6d5b8 25%, accent 50%, #d4b896 75%, accent 100%)',
-              backgroundSize: '200% auto',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              animation: 'gold-shimmer 4s linear infinite',
-            }}
-          >
-            <KineticWord text="LIST" />
-          </h1>
-        </div>
+        {/* Headline */}
+        <h1 className="flex flex-col mb-10">
+          <KineticWord
+            text="THRIFT"
+            className="text-5xl sm:text-7xl lg:text-9xl font-black text-foreground tracking-tighter"
+          />
+          <KineticWord
+            text="LIST"
+            className="text-5xl sm:text-7xl lg:text-9xl font-black text-accent tracking-tighter -mt-2 sm:-mt-5"
+          />
+        </h1>
 
         {/* Subtitle */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 1.8 }}
-          className="text-sm sm:text-base text-white/50 max-w-lg leading-relaxed font-light tracking-wide mb-10"
+          className="text-sm sm:text-base text-foreground/50 max-w-lg leading-relaxed font-bold tracking-wide mb-10"
         >
           Transform your wardrobe into profit. AI-powered listing automation
           that posts to 6 marketplaces in seconds — while you focus on sourcing.
@@ -184,18 +172,18 @@ export default function Hero() {
           className="flex flex-col sm:flex-row gap-3 mb-10"
         >
           <FabricButton href="/dashboard" variant="gold">
-            Start Selling Free
+            Start Selling Now
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </FabricButton>
 
           <FabricButton href="/items/new" variant="outline">
             <Sparkles className="w-4 h-4" />
-            Create Listing
+            Quick Listing
           </FabricButton>
 
           <FabricButton href="#features" variant="ghost">
             <Play className="w-4 h-4" />
-            See How It Works
+            How It Works
           </FabricButton>
         </motion.div>
 
@@ -208,19 +196,19 @@ export default function Hero() {
         >
           <div className="flex items-center gap-1.5">
             {[...Array(5)].map((_, i) => (
-              <Star key={i} className="w-3 h-3 text-[accent] fill-[accent]" />
+              <Star key={i} className="w-3 h-3 text-accent fill-accent" />
             ))}
-            <span className="text-[10px] uppercase tracking-widest text-white/40 ml-1">
+            <span className="text-[10px] uppercase tracking-widest text-foreground/40 ml-1 font-bold">
               4.9/5
             </span>
           </div>
-          <div className="w-px h-4 bg-white/10" />
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-white/40">
+          <div className="w-px h-4 bg-border" />
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-foreground/40 font-bold">
             <Users className="w-3 h-3" />
             <span>500+ Resellers</span>
           </div>
-          <div className="w-px h-4 bg-white/10" />
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-white/40">
+          <div className="w-px h-4 bg-border" />
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-foreground/40 font-bold">
             <TrendingUp className="w-3 h-3" />
             <span>50K+ Items</span>
           </div>

@@ -31,11 +31,11 @@ export default function RootLayout({
     >
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#020617" />
+        <meta name="theme-color" content="#FAF5FF" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
-      <body className="min-h-full flex text-white gradient-bg">
+      <body className="min-h-full flex flex-col bg-background text-foreground">
         <ClientLayout>{children}</ClientLayout>
       </body>
     </html>

@@ -47,19 +47,16 @@ function FeatureCard({ feature, index }: { feature: typeof features[0]; index: n
       initial={{ opacity: 0, y: 40 }}
       animate={isInView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.8, delay: index * 0.12, ease: [0.22, 1, 0.36, 1] }}
-      className="group relative"
+      className="group relative cursor-pointer"
     >
-      <div className="absolute top-0 left-0 w-8 h-8 border-l border-t border-[accent]/20 group-hover:border-[accent]/60 transition-colors duration-500" />
-      <div className="absolute bottom-0 right-0 w-8 h-8 border-r border-b border-[accent]/20 group-hover:border-[accent]/60 transition-colors duration-500" />
-      
-      <div className="h-full p-10 ml-4 mr-4 mt-4 mb-4 rounded-[22px] bg-[#0f0e0c]/80 border border-[#2d251e] group-hover:border-[accent]/30 group-hover:shadow-xl group-hover:shadow-black/30 group-hover:-translate-y-1 transition-all duration-500 backdrop-blur-sm">
-        <div className="w-12 h-12 rounded-2xl bg-[accent]/5 border border-[accent]/10 flex items-center justify-center mb-6 group-hover:bg-[accent]/10 group-hover:border-[accent]/30 group-hover:shadow-md group-hover:shadow-[accent]/10 transition-all duration-500">
-          <feature.icon className="w-5 h-5 text-[accent]/60 group-hover:text-[accent] transition-colors duration-500" />
+      <div className="h-full p-10 rounded-[22px] bg-white border border-border hover:border-accent/30 hover:shadow-lg transition-all duration-300">
+        <div className="w-12 h-12 rounded-2xl bg-accent/5 border border-accent/10 flex items-center justify-center mb-6 group-hover:bg-accent/10 group-hover:border-accent/30 transition-all duration-300">
+          <feature.icon className="w-5 h-5 text-accent/60 group-hover:text-accent transition-colors duration-300" />
         </div>
-        <h3 className="text-lg font-bold text-white mb-3 tracking-wide font-serif">
+        <h3 className="text-lg font-bold text-foreground mb-3 tracking-wide">
           {feature.title}
         </h3>
-        <p className="text-sm text-white/50 leading-relaxed">
+        <p className="text-sm text-foreground/60 leading-relaxed">
           {feature.description}
         </p>
       </div>
@@ -72,11 +69,7 @@ export default function Features() {
   const isHeaderInView = useInView(headerRef, { once: true, margin: '-120px' });
 
   return (
-    <section className="relative py-32 sm:py-44 px-6 bg-[#0a0a0a] art-deco-pattern">
-      {/* Horizontal decorative lines */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[accent]/10 to-transparent" />
-      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[accent]/10 to-transparent" />
-      
+    <section className="relative py-32 sm:py-44 px-6 bg-background">
       <div className="max-w-5xl mx-auto">
         <motion.div
           ref={headerRef}
@@ -89,22 +82,22 @@ export default function Features() {
             initial={{ opacity: 0 }}
             animate={isHeaderInView ? { opacity: 1 } : {}}
             transition={{ delay: 0.3 }}
-            className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.4em] text-[accent] mb-6 font-mono"
+            className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.4em] text-primary mb-6"
           >
             <Sparkles className="w-3 h-3" />
             Capabilities
           </motion.span>
           
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-light text-white tracking-tight leading-[1.1] font-serif">
+          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground tracking-tight leading-[1.1]">
             Engineered for{" "}
-            <span className="gradient-text">Excellence.</span>
+            <span className="text-accent">Excellence.</span>
           </h2>
           
           <motion.p
             initial={{ opacity: 0 }}
             animate={isHeaderInView ? { opacity: 1 } : {}}
             transition={{ delay: 0.4, duration: 0.8 }}
-            className="text-base text-white/50 max-w-md mx-auto mt-6 leading-relaxed"
+            className="text-base text-foreground/60 max-w-md mx-auto mt-6 leading-relaxed"
           >
             Every feature thoughtfully crafted to amplify your reselling business.
           </motion.p>

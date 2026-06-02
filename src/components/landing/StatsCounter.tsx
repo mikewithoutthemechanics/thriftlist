@@ -69,14 +69,7 @@ export default function StatsCounter() {
   const isInView = useInView(ref, { once: true, margin: '-100px' });
 
   return (
-    <section className="relative py-24 sm:py-32 px-6 bg-[#0a0a0a]">
-      <div className="absolute inset-0 opacity-[0.02]" 
-        style={{
-          backgroundImage: `radial-gradient(circle at 1px 1px, white 1px, transparent 0)`,
-          backgroundSize: '40px 40px',
-        }}
-      />
-
+    <section className="relative py-24 sm:py-32 px-6 bg-background">
       <div className="max-w-5xl mx-auto" ref={ref}>
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -90,16 +83,16 @@ export default function StatsCounter() {
               initial={{ opacity: 0, y: 20 }}
               animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.6, delay: i * 0.1 }}
-              className="text-center p-8 rounded-[22px] bg-[#111111]/80 border border-white/[0.04] hover:border-accent/20 hover:shadow-xl hover:shadow-black/30 hover:-translate-y-1 transition-all duration-500 group backdrop-blur-sm"
+              className="text-center p-8 rounded-[22px] bg-white border border-border hover:border-accent/20 hover:shadow-lg transition-all duration-300 group cursor-pointer"
             >
-              <div className="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-4 group-hover:bg-accent/15 group-hover:shadow-md group-hover:shadow-accent/10 transition-all">
+              <div className="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-4 group-hover:bg-accent/15 transition-all">
                 <stat.icon className="w-4 h-4 text-accent" />
               </div>
-              <div className="text-3xl font-bold text-white font-serif mb-1">
+              <div className="text-3xl font-bold text-foreground mb-1">
                 <AnimatedCounter target={stat.value} suffix={stat.suffix} />
               </div>
               <div className="text-xs font-bold text-accent uppercase tracking-wider mb-1">{stat.label}</div>
-              <div className="text-[10px] text-white/40">{stat.description}</div>
+              <div className="text-[10px] text-foreground/40">{stat.description}</div>
             </motion.div>
           ))}
         </motion.div>
