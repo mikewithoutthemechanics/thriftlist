@@ -8,9 +8,11 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
 
 export interface AutomationJob {
   itemId: string;
@@ -33,6 +35,7 @@ interface ItemData {
 }
 
 export async function runAutomation(job: AutomationJob) {
+  const supabase = getSupabase();
   const { data: item, error: itemError } = await supabase
     .from('items')
     .select('*')
@@ -159,7 +162,7 @@ async function decryptData(encrypted: string): Promise<any> {
 // ─── Cookie Management ──────────────────────────────────────────────────────
 
 async function getStoredCookies(userId: string, platform: string): Promise<any[] | null> {
-  const { data } = await supabase
+  const { data } = await getSupabase()
     .from('platform_cookies')
     .select('cookies')
     .eq('user_id', userId)
@@ -176,7 +179,7 @@ async function getStoredCookies(userId: string, platform: string): Promise<any[]
 
 async function saveCookies(userId: string, platform: string, cookies: any[]) {
   const encrypted = await encryptData(cookies);
-  await supabase
+  await getSupabase()
     .from('platform_cookies')
     .upsert({
       user_id: userId,
@@ -290,12 +293,13 @@ async function screenshotOnFailure(page: Page, userId: string, platform: string,
   try {
     const buffer = await page.screenshot({ fullPage: true });
     const fileName = `screenshots/${userId}/${platform}/${itemId}-${Date.now()}.png`;
-    const { error } = await supabase.storage.from('uploads').upload(fileName, buffer, {
+    const sb = getSupabase();
+    const { error } = await sb.storage.from('uploads').upload(fileName, buffer, {
       contentType: 'image/png',
       upsert: true,
     });
     if (!error) {
-      const { data } = supabase.storage.from('uploads').getPublicUrl(fileName);
+      const { data } = sb.storage.from('uploads').getPublicUrl(fileName);
       console.log(`Screenshot saved: ${data.publicUrl}`);
       return data.publicUrl;
     }
@@ -389,7 +393,7 @@ async function postToPlatform(platformId: string, item: ItemData, settings: Reco
       await new Promise(resolve => setTimeout(resolve, delay));
 
       if (err.message?.includes('login') || err.message?.includes('auth') || err.message?.includes('session')) {
-        await supabase.from('platform_cookies').delete().eq('user_id', userId).eq('platform', platformId);
+        await getSupabase().from('platform_cookies').delete().eq('user_id', userId).eq('platform', platformId);
         console.log(`Cleared cookies for ${platformId} due to auth error`);
       }
 

@@ -1,4 +1,11 @@
+import { createClient } from '@supabase/supabase-js';
 import { ClothingItem } from './types';
+
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
 
 export interface PriceRecommendation {
   suggestedPrice: number;
@@ -106,11 +113,10 @@ export async function calculateSmartPrice(
 }
 
 /**
- * Get average price for a category
+ * Get average price for a category from DB, with hardcoded fallback
  */
 async function getCategoryAveragePrice(category: string): Promise<number> {
-  // In production, this would query the database for average prices
-  const categoryAverages: Record<string, number> = {
+  const fallbackAverages: Record<string, number> = {
     'Tops': 250,
     'Bottoms': 300,
     'Dresses': 450,
@@ -122,15 +128,30 @@ async function getCategoryAveragePrice(category: string): Promise<number> {
     'Formal Wear': 800,
     'Vintage': 500,
   };
-  return categoryAverages[category] || 0;
+
+  try {
+    const { data } = await getSupabase()
+      .from('market_pricing')
+      .select('avg_price')
+      .eq('category', category)
+      .limit(10);
+
+    if (data && data.length > 0) {
+      const avg = data.reduce((sum: number, row: Record<string, unknown>) => sum + ((row.avg_price as number) || 0), 0) / data.length;
+      if (avg > 0) return Math.round(avg);
+    }
+  } catch (err) {
+    console.warn('DB pricing lookup failed, using fallback:', err);
+  }
+
+  return fallbackAverages[category] || 0;
 }
 
 /**
- * Get brand premium multiplier
+ * Get brand premium multiplier from DB, with hardcoded fallback
  */
 async function getBrandPremium(brand: string): Promise<number> {
-  // In production, this would query the database for brand premiums
-  const brandPremiums: Record<string, number> = {
+  const fallbackPremiums: Record<string, number> = {
     'Nike': 0.2,
     'Adidas': 0.15,
     'Zara': 0.1,
@@ -140,7 +161,25 @@ async function getBrandPremium(brand: string): Promise<number> {
     'Louis Vuitton': 0.5,
     'Supreme': 0.3,
   };
-  return brandPremiums[brand] || 0;
+
+  try {
+    const { data } = await getSupabase()
+      .from('market_pricing')
+      .select('avg_price')
+      .eq('brand', brand)
+      .limit(5);
+
+    if (data && data.length > 0) {
+      const avgBrandPrice = data.reduce((sum: number, row: Record<string, unknown>) => sum + ((row.avg_price as number) || 0), 0) / data.length;
+      if (avgBrandPrice > 300) {
+        return Math.min(0.5, (avgBrandPrice - 300) / 300);
+      }
+    }
+  } catch (err) {
+    console.warn('DB brand premium lookup failed, using fallback:', err);
+  }
+
+  return fallbackPremiums[brand] || 0;
 }
 
 /**

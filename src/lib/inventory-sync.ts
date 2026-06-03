@@ -22,34 +22,74 @@ export interface SyncedItem {
 }
 
 /**
- * Check if an item is sold on a platform
- * This is a placeholder - actual implementation would use platform-specific APIs
+ * Check if an item is sold on a platform by scraping its listing page
  */
 export async function checkItemStatusOnPlatform(
   platformItemId: string,
   platform: string
 ): Promise<{ status: 'sold' | 'available' | 'removed'; soldAt?: string }> {
-  // Placeholder implementation
-  // In production, this would call platform-specific APIs to check item status
-  
+  const listingUrl = buildListingUrl(platform, platformItemId);
+  if (!listingUrl) {
+    return { status: 'available' };
+  }
+
+  try {
+    const res = await fetch(listingUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+      redirect: 'follow',
+    });
+
+    if (res.status === 404 || res.status === 410) {
+      return { status: 'removed' };
+    }
+
+    if (!res.ok) {
+      return { status: 'available' };
+    }
+
+    const html = await res.text();
+    const lowerHtml = html.toLowerCase();
+
+    // Check for sold indicators
+    const soldIndicators = ['sold', 'verkoop', 'item has been sold', 'no longer available', 'listing has ended', 'expired'];
+    for (const indicator of soldIndicators) {
+      if (lowerHtml.includes(indicator)) {
+        return { status: 'sold', soldAt: new Date().toISOString() };
+      }
+    }
+
+    // Check for removed/expired indicators
+    const removedIndicators = ['removed', 'deleted', 'this listing has been removed', 'page not found', 'does not exist'];
+    for (const indicator of removedIndicators) {
+      if (lowerHtml.includes(indicator)) {
+        return { status: 'removed' };
+      }
+    }
+
+    return { status: 'available' };
+  } catch (error) {
+    console.warn(`Failed to check status for ${platform}/${platformItemId}:`, error);
+    return { status: 'available' };
+  }
+}
+
+function buildListingUrl(platform: string, platformItemId: string): string | null {
   switch (platform) {
     case 'facebook_marketplace':
-      // Would use Facebook Graph API
-      return { status: 'available' };
+      return `https://www.facebook.com/marketplace/item/${platformItemId}`;
     case 'yaga':
-      // Would use Yaga API
-      return { status: 'available' };
+      return `https://yaga.co.za/item/${platformItemId}`;
     case 'gumtree':
-      // Would use Gumtree API
-      return { status: 'available' };
+      return `https://www.gumtree.co.za/a-clothing/${platformItemId}`;
     case 'olx':
-      // Would use OLX API
-      return { status: 'available' };
+      return `https://www.olx.co.za/item/${platformItemId}`;
     case 'junkmail':
-      // Would use Junk Mail API
-      return { status: 'available' };
+      return `https://www.junkmail.co.za/v/${platformItemId}`;
     default:
-      return { status: 'available' };
+      return null;
   }
 }
 

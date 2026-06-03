@@ -111,15 +111,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 3. Market Pricing Scraper Skeleton
+    // 3. Market Pricing Scraper — runs daily at 2 AM
     try {
-      // This would ideally be a separate cron job, but we include it here as a fallback
-      // It should only run once a day or so.
       const now = new Date();
-      if (now.getHours() === 2) { // Run at 2 AM
-        console.log('Triggering market price scraper...');
-        // In a real implementation, this would call a Browserbase-powered scraper
-        // that crawls Yaga/FB/Gumtree and inserts into market_pricing.
+      if (now.getHours() === 2) {
+        const { scrapeMarketPrices } = await import('@/lib/market-scraper');
+        await scrapeMarketPrices();
       }
     } catch (err) {
       console.error('Market pricing scraper error:', err);

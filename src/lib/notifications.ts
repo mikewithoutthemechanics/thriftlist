@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
 
 export interface Notification {
   id: string;
@@ -21,7 +24,7 @@ export async function createNotification(
   message: string,
   metadata?: Record<string, any>
 ) {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = getSupabase();
 
   const { data, error } = await supabase
     .from('notifications')
@@ -45,7 +48,7 @@ export async function createNotification(
 }
 
 export async function getUnreadCount(userId: string) {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = getSupabase();
 
   const { count, error } = await supabase
     .from('notifications')
@@ -62,7 +65,7 @@ export async function getUnreadCount(userId: string) {
 }
 
 export async function markAsRead(notificationId: string) {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = getSupabase();
 
   const { error } = await supabase
     .from('notifications')
@@ -78,7 +81,7 @@ export async function markAsRead(notificationId: string) {
 }
 
 export async function markAllAsRead(userId: string) {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = getSupabase();
 
   const { error } = await supabase
     .from('notifications')
