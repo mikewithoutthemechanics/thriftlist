@@ -1,4 +1,11 @@
+import { createClient } from '@supabase/supabase-js';
 import { ClothingItem } from './types';
+
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
 
 export interface SocialMediaPost {
   platform: 'instagram' | 'tiktok' | 'facebook' | 'twitter' | 'pinterest';
@@ -31,7 +38,21 @@ export interface PostResult {
  * Get user's social media configuration
  */
 export async function getSocialMediaConfig(userId: string): Promise<SocialMediaConfig> {
-  // In production, this would fetch from database
+  try {
+    const { data, error } = await getSupabase()
+      .from('settings')
+      .select('value')
+      .eq('user_id', userId)
+      .eq('key', 'social_media_config')
+      .single();
+
+    if (!error && data?.value) {
+      return JSON.parse(data.value);
+    }
+  } catch (err) {
+    console.warn('Failed to fetch social media config:', err);
+  }
+
   return {
     enabled: false,
     platforms: ['instagram', 'facebook'],
@@ -295,78 +316,253 @@ export async function postToSocialMedia(
 }
 
 /**
- * Post to Instagram (placeholder)
+ * Post to Instagram via Instagram Graph API (requires Facebook Page linked to Instagram)
  */
 async function postToInstagram(post: SocialMediaPost, accessToken?: string): Promise<PostResult> {
-  // Placeholder implementation
-  // In production, this would use Instagram Graph API
-  console.log('Posting to Instagram:', post.content);
-  
-  return {
-    platform: 'instagram',
-    success: false,
-    error: 'Instagram API integration not yet implemented',
-  };
+  if (!accessToken) {
+    return { platform: 'instagram', success: false, error: 'Instagram access token not configured. Connect via Settings > Social Media.' };
+  }
+
+  try {
+    // Step 1: Get Instagram Business Account ID
+    const accountsRes = await fetch(
+      `https://graph.facebook.com/v19.0/me/accounts?fields=instagram_business_account&access_token=${accessToken}`
+    );
+    const accountsData = await accountsRes.json();
+    const igAccountId = accountsData.data?.[0]?.instagram_business_account?.id;
+
+    if (!igAccountId) {
+      return { platform: 'instagram', success: false, error: 'No Instagram Business account linked. Link your Instagram to a Facebook Page first.' };
+    }
+
+    // Step 2: Create media container
+    const caption = `${post.content}\n\n${post.hashtags.map(t => `#${t}`).join(' ')}`;
+    const containerParams: Record<string, string> = {
+      caption,
+      access_token: accessToken,
+    };
+
+    if (post.images.length > 0) {
+      containerParams.image_url = post.images[0];
+    }
+
+    const containerRes = await fetch(
+      `https://graph.facebook.com/v19.0/${igAccountId}/media`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(containerParams),
+      }
+    );
+    const containerData = await containerRes.json();
+
+    if (containerData.error) {
+      return { platform: 'instagram', success: false, error: containerData.error.message };
+    }
+
+    // Step 3: Publish the container
+    const publishRes = await fetch(
+      `https://graph.facebook.com/v19.0/${igAccountId}/media_publish`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          creation_id: containerData.id,
+          access_token: accessToken,
+        }),
+      }
+    );
+    const publishData = await publishRes.json();
+
+    if (publishData.error) {
+      return { platform: 'instagram', success: false, error: publishData.error.message };
+    }
+
+    return {
+      platform: 'instagram',
+      success: true,
+      postId: publishData.id,
+      url: `https://www.instagram.com/p/${publishData.id}`,
+    };
+  } catch (error) {
+    return { platform: 'instagram', success: false, error: error instanceof Error ? error.message : 'Instagram API request failed' };
+  }
 }
 
 /**
- * Post to TikTok (placeholder)
+ * Post to TikTok via TikTok Content Posting API
  */
 async function postToTikTok(post: SocialMediaPost, accessToken?: string): Promise<PostResult> {
-  // Placeholder implementation
-  // In production, this would use TikTok API
-  console.log('Posting to TikTok:', post.content);
-  
-  return {
-    platform: 'tiktok',
-    success: false,
-    error: 'TikTok API integration not yet implemented',
-  };
+  if (!accessToken) {
+    return { platform: 'tiktok', success: false, error: 'TikTok access token not configured. Connect via Settings > Social Media.' };
+  }
+
+  try {
+    // TikTok Content Posting API - create a photo post
+    const caption = `${post.content} ${post.hashtags.map(t => `#${t}`).join(' ')}`;
+
+    const postBody: Record<string, unknown> = {
+      post_info: {
+        title: caption.substring(0, 150),
+        privacy_level: 'SELF_ONLY', // start as private, user can change
+      },
+      source_info: {
+        source: 'PULL_FROM_URL',
+        photo_cover_index: 0,
+        photo_images: post.images.slice(0, 35),
+      },
+    };
+
+    const res = await fetch('https://open.tiktokapis.com/v2/post/publish/content/init/', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: JSON.stringify(postBody),
+    });
+
+    const data = await res.json();
+
+    if (data.error?.code !== 'ok' && data.error?.code) {
+      return { platform: 'tiktok', success: false, error: data.error.message || 'TikTok API error' };
+    }
+
+    return {
+      platform: 'tiktok',
+      success: true,
+      postId: data.data?.publish_id,
+    };
+  } catch (error) {
+    return { platform: 'tiktok', success: false, error: error instanceof Error ? error.message : 'TikTok API request failed' };
+  }
 }
 
 /**
- * Post to Facebook (placeholder)
+ * Post to Facebook via Graph API
  */
 async function postToFacebook(post: SocialMediaPost, accessToken?: string): Promise<PostResult> {
-  // Placeholder implementation
-  // In production, this would use Facebook Graph API
-  console.log('Posting to Facebook:', post.content);
-  
-  return {
-    platform: 'facebook',
-    success: false,
-    error: 'Facebook API integration not yet implemented',
-  };
+  if (!accessToken) {
+    return { platform: 'facebook', success: false, error: 'Facebook access token not configured. Connect via Settings > Social Media.' };
+  }
+
+  try {
+    const message = `${post.content}\n\n${post.hashtags.map(t => `#${t}`).join(' ')}`;
+
+    const body: Record<string, string> = { message };
+    if (post.images.length > 0) {
+      body.link = post.images[0];
+    }
+
+    const res = await fetch(`https://graph.facebook.com/v19.0/me/feed`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await res.json();
+
+    if (data.error) {
+      return { platform: 'facebook', success: false, error: data.error.message };
+    }
+
+    return {
+      platform: 'facebook',
+      success: true,
+      postId: data.id,
+      url: `https://facebook.com/${data.id}`,
+    };
+  } catch (error) {
+    return { platform: 'facebook', success: false, error: error instanceof Error ? error.message : 'Facebook API request failed' };
+  }
 }
 
 /**
- * Post to Twitter (placeholder)
+ * Post to Twitter/X via Twitter API v2
  */
 async function postToTwitter(post: SocialMediaPost, accessToken?: string): Promise<PostResult> {
-  // Placeholder implementation
-  // In production, this would use Twitter API v2
-  console.log('Posting to Twitter:', post.content);
-  
-  return {
-    platform: 'twitter',
-    success: false,
-    error: 'Twitter API integration not yet implemented',
-  };
+  if (!accessToken) {
+    return { platform: 'twitter', success: false, error: 'Twitter/X access token not configured. Connect via Settings > Social Media.' };
+  }
+
+  try {
+    const text = `${post.content} ${post.hashtags.slice(0, 5).map(t => `#${t}`).join(' ')}`.substring(0, 280);
+
+    const res = await fetch('https://api.twitter.com/2/tweets', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    const data = await res.json();
+
+    if (data.errors) {
+      return { platform: 'twitter', success: false, error: data.errors[0]?.message || 'Twitter API error' };
+    }
+
+    return {
+      platform: 'twitter',
+      success: true,
+      postId: data.data?.id,
+      url: `https://twitter.com/i/web/status/${data.data?.id}`,
+    };
+  } catch (error) {
+    return { platform: 'twitter', success: false, error: error instanceof Error ? error.message : 'Twitter API request failed' };
+  }
 }
 
 /**
- * Post to Pinterest (placeholder)
+ * Post to Pinterest via Pinterest API v5
  */
 async function postToPinterest(post: SocialMediaPost, accessToken?: string): Promise<PostResult> {
-  // Placeholder implementation
-  // In production, this would use Pinterest API
-  console.log('Posting to Pinterest:', post.content);
-  
-  return {
-    platform: 'pinterest',
-    success: false,
-    error: 'Pinterest API integration not yet implemented',
-  };
+  if (!accessToken) {
+    return { platform: 'pinterest', success: false, error: 'Pinterest access token not configured. Connect via Settings > Social Media.' };
+  }
+
+  try {
+    const pinBody: Record<string, unknown> = {
+      title: post.content.substring(0, 100),
+      description: `${post.content}\n${post.hashtags.map(t => `#${t}`).join(' ')}`,
+      board_id: 'default',
+    };
+
+    if (post.images.length > 0) {
+      pinBody.media_source = {
+        source_type: 'image_url',
+        url: post.images[0],
+      };
+    }
+
+    const res = await fetch('https://api.pinterest.com/v5/pins', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(pinBody),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      return { platform: 'pinterest', success: false, error: data.message || 'Pinterest API error' };
+    }
+
+    return {
+      platform: 'pinterest',
+      success: true,
+      postId: data.id,
+      url: `https://pinterest.com/pin/${data.id}`,
+    };
+  } catch (error) {
+    return { platform: 'pinterest', success: false, error: error instanceof Error ? error.message : 'Pinterest API request failed' };
+  }
 }
 
 /**
@@ -462,8 +658,21 @@ export async function scheduleSocialMediaPosts(
     return;
   }
 
-  // In production, this would use a cron job or queue system
-  console.log(`Scheduling social media posts for ${item.title} at ${scheduledAt.toISOString()}`);
+  for (const platform of config.platforms) {
+    const { content, hashtags } = generateSocialMediaContent(item, platform, config);
+
+    await getSupabase()
+      .from('social_media_posts')
+      .insert({
+        user_id: userId,
+        platform,
+        content,
+        hashtags,
+        images: item.photos || [],
+        scheduled_at: scheduledAt.toISOString(),
+        status: 'scheduled',
+      });
+  }
 }
 
 /**
@@ -474,11 +683,32 @@ export async function getSocialMediaAnalytics(userId: string): Promise<{
   successfulPosts: number;
   platformStats: Record<string, { posts: number; engagement: number }>;
 }> {
-  // Placeholder implementation
-  // In production, this would fetch from database
-  return {
-    totalPosts: 0,
-    successfulPosts: 0,
-    platformStats: {},
-  };
+  try {
+    const { data, error } = await getSupabase()
+      .from('social_media_posts')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (error || !data) {
+      return { totalPosts: 0, successfulPosts: 0, platformStats: {} };
+    }
+
+    const totalPosts = data.length;
+    const successfulPosts = data.filter((p: Record<string, unknown>) => p.status === 'posted').length;
+
+    const platformStats: Record<string, { posts: number; engagement: number }> = {};
+    for (const post of data) {
+      const platform = post.platform as string;
+      if (!platformStats[platform]) {
+        platformStats[platform] = { posts: 0, engagement: 0 };
+      }
+      platformStats[platform].posts++;
+      platformStats[platform].engagement += (post.engagement as number) || 0;
+    }
+
+    return { totalPosts, successfulPosts, platformStats };
+  } catch (err) {
+    console.warn('Failed to fetch social media analytics:', err);
+    return { totalPosts: 0, successfulPosts: 0, platformStats: {} };
+  }
 }

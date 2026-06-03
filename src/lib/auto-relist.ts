@@ -178,16 +178,17 @@ export async function autoRelistItem(
         continue;
       }
 
-      // Trigger automation for this posting
-      // This would typically call the automation system
-      // For now, we'll mark it as posted (in production, integrate with automation.ts)
+      // Queue the relist through the automation system
       await getSupabase()
-        .from('postings')
-        .update({
-          status: 'posted',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', postingData.id);
+        .from('automation_queue')
+        .insert({
+          item_id: itemId,
+          platforms: JSON.stringify([platform]),
+          user_id: userId,
+          status: 'pending',
+          action: 'relist',
+          metadata: JSON.stringify({ postingId: postingData.id, newPrice: updatedPrice }),
+        });
 
       results.push({
         itemId,

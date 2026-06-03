@@ -6,6 +6,37 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
+/**
+ * Remove a listing from a platform by marking it as sold/removed via the platform's web interface
+ */
+async function removeListingFromPlatform(platform: string, platformItemId: string): Promise<void> {
+  const platformUrls: Record<string, string> = {
+    facebook_marketplace: `https://www.facebook.com/marketplace/item/${platformItemId}`,
+    yaga: `https://yaga.co.za/item/${platformItemId}`,
+    gumtree: `https://www.gumtree.co.za/a-clothing/${platformItemId}`,
+    olx: `https://www.olx.co.za/item/${platformItemId}`,
+    junkmail: `https://www.junkmail.co.za/v/${platformItemId}`,
+  };
+
+  const url = platformUrls[platform];
+  if (!url) return;
+
+  try {
+    // Queue a removal job for the automation system
+    await getSupabase()
+      .from('automation_queue')
+      .insert({
+        action: 'remove_listing',
+        platform,
+        platform_item_id: platformItemId,
+        status: 'pending',
+        metadata: { url },
+      });
+  } catch (error) {
+    console.warn(`Failed to queue listing removal for ${platform}/${platformItemId}:`, error);
+  }
+}
+
 export interface SyncConfig {
   enabled: boolean;
   autoRemoveSold: boolean;
@@ -117,8 +148,9 @@ export async function handleItemSold(
 
         syncEvent.syncedPlatforms.push(posting.platform);
 
-        // In production, this would call the platform's API to remove the listing
-        // await removeListingFromPlatform(posting.platform, posting.platform_item_id);
+        if (posting.platform_item_id) {
+          await removeListingFromPlatform(posting.platform, posting.platform_item_id);
+        }
       } catch (error) {
         console.error(`Failed to sync sold status to ${posting.platform}:`, error);
       }
