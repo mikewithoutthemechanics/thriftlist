@@ -36,6 +36,41 @@ const steps = [
   },
 ];
 
+type Step = (typeof steps)[number];
+
+function StepCard({ step, index }: { step: Step; index: number }) {
+  const stepRef = useRef<HTMLDivElement>(null);
+  const stepInView = useInView(stepRef, { once: true, margin: '-80px' });
+
+  return (
+    <motion.div
+      ref={stepRef}
+      initial={{ opacity: 0, y: 30 }}
+      animate={stepInView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.7, delay: index * 0.12, ease: [0.22, 1, 0.36, 1] }}
+      className="group relative cursor-pointer"
+    >
+      <div className="h-full p-8 rounded-[22px] bg-white border border-border hover:border-accent/40 hover:shadow-lg transition-all duration-300">
+        <div className="flex items-center justify-between mb-6">
+          <span className="text-4xl font-black text-foreground/5 group-hover:text-accent/10 transition-colors">
+            {step.number}
+          </span>
+          <div className="w-12 h-12 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center group-hover:bg-accent/15 group-hover:shadow-md transition-all">
+            <step.icon className="w-5 h-5 text-accent" />
+          </div>
+        </div>
+
+        <h3 className="text-lg font-bold text-foreground mb-3 tracking-tight">
+          {step.title}
+        </h3>
+        <p className="text-sm text-foreground/60 leading-relaxed">
+          {step.description}
+        </p>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function HowItWorks() {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: '-100px' });
@@ -64,39 +99,9 @@ export default function HowItWorks() {
 
         {/* Steps Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {steps.map((step, i) => {
-            const stepRef = useRef<HTMLDivElement>(null);
-            const stepInView = useInView(stepRef, { once: true, margin: '-80px' });
-            return (
-              <motion.div
-                key={step.number}
-                ref={stepRef}
-                initial={{ opacity: 0, y: 30 }}
-                animate={stepInView ? { opacity: 1, y: 0 } : {}}
-                transition={{ duration: 0.7, delay: i * 0.12, ease: [0.22, 1, 0.36, 1] }}
-                className="group relative cursor-pointer"
-              >
-                <div className="h-full p-8 rounded-[22px] bg-white border border-border hover:border-accent/40 hover:shadow-lg transition-all duration-300">
-                  {/* Number + Icon */}
-                  <div className="flex items-center justify-between mb-6">
-                    <span className="text-4xl font-black text-foreground/5 group-hover:text-accent/10 transition-colors">
-                      {step.number}
-                    </span>
-                    <div className="w-12 h-12 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center group-hover:bg-accent/15 group-hover:shadow-md transition-all">
-                      <step.icon className="w-5 h-5 text-accent" />
-                    </div>
-                  </div>
-
-                  <h3 className="text-lg font-bold text-foreground mb-3 tracking-tight">
-                    {step.title}
-                  </h3>
-                  <p className="text-sm text-foreground/60 leading-relaxed">
-                    {step.description}
-                  </p>
-                </div>
-              </motion.div>
-            );
-          })}
+          {steps.map((step, i) => (
+            <StepCard key={step.number} step={step} index={i} />
+          ))}
         </div>
 
         {/* Bottom CTA */}

@@ -1,19 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { timingSafeEqual } from 'node:crypto';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+function isAuthorized(request: NextRequest): boolean {
+  const configuredSecret = process.env.MIGRATIONS_API_SECRET;
+  if (!configuredSecret) return false;
+
+  const headerSecret = request.headers.get('x-migrations-secret');
+  const authHeader = request.headers.get('authorization');
+  const bearerSecret = authHeader?.toLowerCase().startsWith('bearer ') ? authHeader.slice(7) : null;
+  const providedSecret = headerSecret || bearerSecret;
+  if (!providedSecret) return false;
+
+  const a = Buffer.from(providedSecret);
+  const b = Buffer.from(configuredSecret);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { serviceKey } = body;
+    if (!process.env.MIGRATIONS_API_SECRET) {
+      return NextResponse.json({ error: 'Migrations endpoint is disabled' }, { status: 503 });
+    }
 
-    if (!serviceKey) {
-      return NextResponse.json({ error: 'Service key required' }, { status: 401 });
+    if (!isAuthorized(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabase = createClient(supabaseUrl, serviceKey);
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseServiceKey) {
+      return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY not configured' }, { status: 500 });
+    }
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
     const migrations = [
       {
@@ -143,56 +168,14 @@ export async function POST(request: NextRequest) {
       }
     ];
 
-    const results = [];
+    const results: Array<{ name: string; success: boolean; error?: string }> = [];
 
     for (const migration of migrations) {
-      console.log(`Running migration: ${migration.name}`);
-      const { error } = await supabase.from(migration.name).select('*').limit(1);
-      
-      // If table doesn't exist, create it using direct SQL
-      if (error && error.code === '42P01') {
-        // Table doesn't exist, create it
-        const { error: createError } = await supabase.rpc('exec_sql', { sql: migration.sql });
-        if (createError) {
-          console.error(`Error creating ${migration.name}:`, createError);
-          // Try alternative approach: execute SQL directly
-          const { error: directError } = await supabase
-            .from(migration.name)
-            .select('*')
-            .limit(1);
-          
-          if (directError && directError.code === '42P01') {
-            // Still doesn't exist, try using the REST API directly
-            try {
-              const response = await fetch(`${supabaseUrl}/rest/v1/`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'apikey': serviceKey,
-                  'Authorization': `Bearer ${serviceKey}`,
-                },
-                body: JSON.stringify({ query: migration.sql }),
-              });
-              
-              if (response.ok) {
-                results.push({ name: migration.name, success: true });
-              } else {
-                results.push({ name: migration.name, success: false, error: 'Failed to create table via REST API' });
-              }
-            } catch (e) {
-              results.push({ name: migration.name, success: false, error: String(e) });
-            }
-          } else {
-            results.push({ name: migration.name, success: true, message: 'Table created' });
-          }
-        } else {
-          results.push({ name: migration.name, success: true });
-        }
-      } else if (error) {
-        console.error(`Error checking ${migration.name}:`, error);
-        results.push({ name: migration.name, success: false, error: String(error) });
+      const { error } = await supabase.rpc('exec_sql', { sql: migration.sql });
+      if (error) {
+        results.push({ name: migration.name, success: false, error: error.message });
       } else {
-        results.push({ name: migration.name, success: true, message: 'Table already exists' });
+        results.push({ name: migration.name, success: true });
       }
     }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { encrypt } from '@/lib/encryption';
+import { createClientServer } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +30,12 @@ export async function GET(request: NextRequest) {
   const redirectUri = `${baseUrl}/api/oauth/facebook/callback`;
 
   try {
+    const supabase = await createClientServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.redirect(`/settings?error=not_authenticated`);
+    }
+
     // Exchange code for access token
     const tokenRes = await fetch(
       `https://graph.facebook.com/v18.0/oauth/access_token?` +
@@ -53,17 +59,11 @@ export async function GET(request: NextRequest) {
     const userData = await userRes.json();
 
     // Encrypt token before storing
-    const encryptedToken = encrypt(accessToken);
-
-    // Store in Supabase settings (requires service role key for cross-user storage)
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Get current user from session
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.redirect(`/settings?error=not_authenticated`);
+    let encryptedToken = '';
+    try {
+      encryptedToken = encrypt(accessToken);
+    } catch {
+      return NextResponse.redirect(`/settings?error=encryption_not_configured`);
     }
 
     await supabase.from('settings').upsert({

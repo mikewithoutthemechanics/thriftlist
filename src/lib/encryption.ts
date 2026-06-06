@@ -1,25 +1,36 @@
-import CryptoJS from 'crypto-js';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 
-// Derive encryption key from environment or fallback
-function getKey(): string {
-  const key = process.env.ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'thriftlist-default-key';
-  // Hash to fixed length for AES-256
-  return CryptoJS.SHA256(key).toString(CryptoJS.enc.Hex).slice(0, 32);
+function getKey(): Buffer {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error('ENCRYPTION_KEY is required');
+  }
+  return createHash('sha256').update(key).digest();
 }
 
 export function encrypt(text: string): string {
   if (!text) return '';
   const key = getKey();
-  const encrypted = CryptoJS.AES.encrypt(text, key);
-  return encrypted.toString();
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${iv.toString('base64')}.${tag.toString('base64')}.${ciphertext.toString('base64')}`;
 }
 
 export function decrypt(encryptedText: string): string {
   if (!encryptedText) return '';
   try {
+    const [ivB64, tagB64, dataB64] = encryptedText.split('.');
+    if (!ivB64 || !tagB64 || !dataB64) return '';
+
     const key = getKey();
-    const decrypted = CryptoJS.AES.decrypt(encryptedText, key);
-    return decrypted.toString(CryptoJS.enc.Utf8);
+    const iv = Buffer.from(ivB64, 'base64');
+    const tag = Buffer.from(tagB64, 'base64');
+    const data = Buffer.from(dataB64, 'base64');
+    const decipher = createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
   } catch {
     return '';
   }

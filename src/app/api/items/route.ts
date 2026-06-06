@@ -12,7 +12,7 @@ function generateItemHash(title: string, description: string, price: number): st
 export async function GET(request: NextRequest) {
   try {
     const identifier = getIdentifier(request);
-    const rateLimit = checkRateLimit(identifier, { maxRequests: 100, windowMs: 60000 });
+    const rateLimit = await checkRateLimit(identifier, { maxRequests: 100, windowMs: 60000 });
     
     if (!rateLimit.success) {
       return NextResponse.json(
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const identifier = getIdentifier(request);
-    const rateLimit = checkRateLimit(identifier, { maxRequests: 20, windowMs: 60000 });
+    const rateLimit = await checkRateLimit(identifier, { maxRequests: 20, windowMs: 60000 });
     
     if (!rateLimit.success) {
       return NextResponse.json(

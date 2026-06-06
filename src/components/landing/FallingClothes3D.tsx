@@ -149,6 +149,15 @@ const clothingData: Omit<ClothingItem, 'id'>[] = [
 
 export default function FallingClothes3D() {
   const [scrollY, setScrollY] = useState(0);
+  const [dustParticles, setDustParticles] = useState<Array<{
+    id: number;
+    left: number;
+    top: number;
+    size: number;
+    delay: number;
+    duration: number;
+    color: string;
+  }>>([]);
 
   useEffect(() => {
     const onScroll = () => setScrollY(window.scrollY);
@@ -160,7 +169,7 @@ export default function FallingClothes3D() {
     return clothingData.map((item, i) => ({ ...item, id: i }));
   }, []);
 
-  const dustParticles = useMemo(() => {
+  useEffect(() => {
     const particles = [];
     for (let i = 0; i < 25; i++) {
       particles.push({
@@ -173,7 +182,7 @@ export default function FallingClothes3D() {
         color: Math.random() > 0.5 ? 'rgba(196,168,130,0.4)' : 'rgba(255,255,255,0.3)',
       });
     }
-    return particles;
+    setDustParticles(particles);
   }, []);
 
   return (

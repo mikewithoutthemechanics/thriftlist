@@ -1,7 +1,7 @@
 import { chromium, Page, Browser, BrowserContext } from 'playwright-core';
 import { launch } from 'cloakbrowser';
 import Browserbase from '@browserbasehq/sdk';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceRoleClient } from './supabase-service';
 import { SA_PLATFORMS } from './platforms';
 import { createNotification } from './notifications';
 import path from 'path';
@@ -9,9 +9,7 @@ import fs from 'fs';
 import os from 'os';
 
 function getSupabase() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  return createClient(supabaseUrl, supabaseServiceKey);
+  return createServiceRoleClient();
 }
 
 export interface AutomationJob {
@@ -117,6 +115,14 @@ export async function runAutomation(job: AutomationJob) {
 
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
 
+function requireEncryptionKey(): string | null {
+  if (ENCRYPTION_KEY) return ENCRYPTION_KEY;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('ENCRYPTION_KEY is required');
+  }
+  return null;
+}
+
 async function deriveKey(keyStr: string): Promise<CryptoKey> {
   const enc = new TextEncoder();
   const keyData = enc.encode(keyStr.padEnd(32, '0').slice(0, 32));
@@ -124,9 +130,10 @@ async function deriveKey(keyStr: string): Promise<CryptoKey> {
 }
 
 async function encryptData(data: any): Promise<string | null> {
-  if (!ENCRYPTION_KEY) return JSON.stringify(data);
+  const keyStr = requireEncryptionKey();
+  if (!keyStr) return JSON.stringify(data);
   try {
-    const key = await deriveKey(ENCRYPTION_KEY);
+    const key = await deriveKey(keyStr);
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const plaintext = new TextEncoder().encode(JSON.stringify(data));
     const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
@@ -141,13 +148,16 @@ async function encryptData(data: any): Promise<string | null> {
 }
 
 async function decryptData(encrypted: string): Promise<any> {
-  if (!ENCRYPTION_KEY) return JSON.parse(encrypted);
   // Heuristic: if it looks like plain JSON, return as-is (migration path)
   if (encrypted.trim().startsWith('[') || encrypted.trim().startsWith('{')) {
     return JSON.parse(encrypted);
   }
   try {
-    const key = await deriveKey(ENCRYPTION_KEY);
+    const keyStr = requireEncryptionKey();
+    if (!keyStr) {
+      throw new Error('ENCRYPTION_KEY is required');
+    }
+    const key = await deriveKey(keyStr);
     const combined = Uint8Array.from(atob(encrypted), c => c.charCodeAt(0));
     const iv = combined.slice(0, 12);
     const ciphertext = combined.slice(12);
@@ -1097,4 +1107,3 @@ export async function savePlatformAuth(userId: string, platform: string, session
     throw new Error('Failed to capture cookies from browser session. Please try again.');
   }
 }
-

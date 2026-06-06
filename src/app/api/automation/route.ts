@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   try {
     const identifier = getIdentifier(request);
-    const rateLimit = checkRateLimit(identifier, { maxRequests: 10, windowMs: 60000 });
+    const rateLimit = await checkRateLimit(identifier, { maxRequests: 10, windowMs: 60000 });
     
     if (!rateLimit.success) {
       return NextResponse.json(

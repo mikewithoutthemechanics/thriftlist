@@ -41,6 +41,14 @@ export async function POST(request: NextRequest) {
     if (uploadError) throw uploadError;
 
     const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(path);
+    const signedTtlSeconds = Number(process.env.UPLOAD_SIGNED_URL_TTL_SECONDS || '3600');
+    let signedUrl: string | null = null;
+    try {
+      const { data } = await supabase.storage.from('uploads').createSignedUrl(path, signedTtlSeconds);
+      signedUrl = data?.signedUrl || null;
+    } catch { }
+    const urlMode = process.env.UPLOAD_URL_MODE;
+    const url = urlMode === 'signed' && signedUrl ? signedUrl : publicUrl;
 
     // 2. Auto-Parse using Vision AI
     let aiParsed = null;
@@ -72,7 +80,10 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ 
-      url: publicUrl,
+      url,
+      publicUrl,
+      signedUrl,
+      path,
       aiParsed
     });
   } catch (error: any) {

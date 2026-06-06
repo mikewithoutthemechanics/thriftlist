@@ -24,8 +24,17 @@ export default function SetupWizard() {
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [settings, setSettings] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
+
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch('/api/settings');
+      const data = await res.json();
+      setSettings(data.settings || {});
+    } catch {
+      setSettings({});
+    }
+  };
 
   useEffect(() => {
     const wizardDone = localStorage.getItem('setup_wizard_completed');
@@ -34,23 +43,11 @@ export default function SetupWizard() {
     }
   }, []);
 
-  const fetchSettings = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/settings');
-      const data = await res.json();
-      setSettings(data.settings || {});
-    } catch {
-      setSettings({});
-    }
-    setLoading(false);
-  };
-
   const checkHealth = async () => {
     setChecking(true);
     try {
       const res = await fetch('/api/health');
-      const data = await res.json();
+      await res.json();
       // Refresh settings after health check
       await fetchSettings();
     } catch {
